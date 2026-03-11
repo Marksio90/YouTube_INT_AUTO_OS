@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+.venv/
+
+# FastAPI / Uvicorn
+*.log
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+.npm
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env.local
+
+# Docker
+.docker/
+
+# Database
+*.db
+*.sqlite
+*.sql.bak
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+.tox/
+
+# Alembic
+migrations/versions/*.pyc
+
+# Assets / Media
+uploads/
+media/
+*.mp4
+*.mp3
+*.wav
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+!docs/**/*.jpg
+
+# Langfuse
+langfuse_data/
