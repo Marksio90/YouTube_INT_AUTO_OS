@@ -248,15 +248,78 @@ class YouTubeService:
                 params=params, headers=headers,
             )
 
-    async def sync_video_analytics(self, video_project_id: str, published_url: str):
+    async def upload_video(
+        self,
+        channel_id: str,
+        video_path: str,
+        video_metadata: Dict,
+    ) -> Optional[str]:
+        """
+        Upload video to YouTube using stored OAuth token for the channel.
+        Returns YouTube video URL or None if upload fails.
+        Costs ~1600 quota units.
+        """
+        from services.youtube_oauth_service import youtube_oauth_service
+
+        access_token = await youtube_oauth_service.get_valid_access_token(channel_id)
+        if not access_token:
+            logger.error("Cannot upload: channel not authorized with YouTube OAuth", channel_id=channel_id)
+            return None
+
+        # Step 1: Get resumable upload URL
+        upload_url = await self.get_upload_token(access_token, video_metadata)
+        if not upload_url:
+            logger.error("Failed to get upload URL from YouTube", channel_id=channel_id)
+            return None
+
+        # Step 2: Upload video file via PUT
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            with open(video_path, "rb") as f:
+                video_bytes = f.read()
+            response = await client.put(
+                upload_url,
+                content=video_bytes,
+                headers={
+                    "Content-Type": "video/mp4",
+                    "Content-Length": str(len(video_bytes)),
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        video_id = data.get("id")
+        if not video_id:
+            logger.error("Upload succeeded but no video ID returned", channel_id=channel_id)
+            return None
+
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        logger.info("Video uploaded to YouTube", channel_id=channel_id, video_id=video_id, url=video_url)
+        return video_url
+
+    async def sync_video_analytics(self, video_project_id: str, published_url: str, channel_id: str = None):
         """Sync YouTube Analytics to VideoAnalytics model in DB."""
-        # In production: extract video_id from URL, use OAuth token, fetch metrics
+        from services.youtube_oauth_service import youtube_oauth_service
+
         video_id = self._extract_video_id(published_url)
         if not video_id:
             return
 
-        # TODO: Use stored OAuth token for the channel
-        logger.info("Video analytics sync queued", video_id=video_id, project_id=video_project_id)
+        if not channel_id:
+            logger.info("Video analytics sync skipped — channel_id not provided", video_id=video_id)
+            return
+
+        access_token = await youtube_oauth_service.get_valid_access_token(channel_id)
+        if not access_token:
+            logger.warning("Cannot sync analytics: channel not authorized", channel_id=channel_id)
+            return
+
+        retention_data = await self.get_video_retention(video_id, access_token)
+        logger.info(
+            "Video analytics synced",
+            video_id=video_id,
+            project_id=video_project_id,
+            retention_points=len(retention_data),
+        )
 
     # ============================================================
     # Trending / Research

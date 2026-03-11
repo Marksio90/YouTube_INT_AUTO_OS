@@ -15,6 +15,7 @@ from typing import Optional
 import structlog
 
 from core.config import settings
+from core.langfuse import create_trace
 from services.storage_service import storage_service
 
 logger = structlog.get_logger(__name__)
@@ -80,6 +81,14 @@ class TTSService:
             video_project_id=video_project_id,
         )
 
+        trace = create_trace(
+            name="elevenlabs_tts",
+            input_data={"text_length": len(text), "voice_id": voice_id, "model_id": model_id},
+            metadata={"video_project_id": video_project_id},
+            session_id=video_project_id,
+            tags=["tts", "elevenlabs"],
+        )
+
         # Split long scripts into chunks (ElevenLabs limit: ~5000 chars per request)
         chunks = self._split_text(text, max_chars=4800)
         audio_chunks: list[bytes] = []
@@ -126,6 +135,13 @@ class TTSService:
         )
 
         logger.info("Voice-over generated and uploaded", url=url, size_bytes=len(audio_data))
+
+        if trace:
+            trace.update(
+                output={"url": url, "size_bytes": len(audio_data), "chunks": len(chunks)},
+                metadata={"estimated_cost_usd": self.estimate_cost_usd(text)},
+            )
+
         return url
 
     async def get_voices(self) -> list:

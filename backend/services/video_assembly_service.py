@@ -21,6 +21,7 @@ import structlog
 
 from services.storage_service import storage_service
 from services.asset_service import asset_service
+from core.langfuse import create_trace
 
 logger = structlog.get_logger(__name__)
 
@@ -282,28 +283,42 @@ class VideoAssemblyService:
         if proc.returncode != 0:
             raise Exception(f"FFmpeg failed: {stderr.decode()[-500:]}")
 
-    async def generate_captions(self, voice_track_url: str) -> str:
+    async def generate_captions(self, voice_track_url: str, video_project_id: str = None) -> str:
         """
         Generate SRT captions using Whisper API.
         Returns SRT string.
         """
         import httpx
+        from core.config import settings as _settings
 
         voice_path = self.tmp_dir / "caption_audio.mp3"
         await self._download_asset(voice_track_url, voice_path)
+
+        trace = create_trace(
+            name="whisper_transcription",
+            input_data={"audio_url": voice_track_url, "language": "pl"},
+            session_id=video_project_id,
+            tags=["whisper", "captions"],
+        )
 
         async with httpx.AsyncClient() as client:
             with open(voice_path, "rb") as f:
                 response = await client.post(
                     "https://api.openai.com/v1/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {__import__('core.config', fromlist=['settings']).settings.openai_api_key}"},
+                    headers={"Authorization": f"Bearer {_settings.openai_api_key}"},
                     data={"model": "whisper-1", "response_format": "srt", "language": "pl"},
                     files={"file": ("audio.mp3", f, "audio/mpeg")},
                     timeout=120.0,
                 )
 
         if response.status_code == 200:
-            return response.text
+            srt = response.text
+            if trace:
+                trace.update(output={"srt_length": len(srt)})
+            return srt
+
+        if trace:
+            trace.update(output={"error": f"HTTP {response.status_code}"})
         raise Exception(f"Whisper transcription failed: {response.status_code}")
 
     async def _download_asset(self, url: str, dest_path: Path):

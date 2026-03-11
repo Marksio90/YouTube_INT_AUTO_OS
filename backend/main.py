@@ -8,6 +8,7 @@ import json
 
 from core.config import settings
 from core.database import init_db, close_db
+from core.langfuse import flush as langfuse_flush, is_enabled as langfuse_enabled
 from api.v1.router import api_router
 
 logger = structlog.get_logger(__name__)
@@ -15,9 +16,14 @@ logger = structlog.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting YouTube Intelligence & Automation OS API", env=settings.app_env)
+    logger.info(
+        "Starting YouTube Intelligence & Automation OS API",
+        env=settings.app_env,
+        langfuse_enabled=langfuse_enabled(),
+    )
     await init_db()
     yield
+    langfuse_flush()
     await close_db()
     logger.info("API shutdown complete")
 

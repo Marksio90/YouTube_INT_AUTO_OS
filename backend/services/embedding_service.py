@@ -24,7 +24,10 @@ logger = structlog.get_logger(__name__)
 
 class EmbeddingService:
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.client = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            organization=settings.openai_org_id or None,
+        )
         self.model = settings.openai_embedding_model  # text-embedding-3-large
         self.dimensions = 1536
 

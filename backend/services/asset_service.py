@@ -16,6 +16,7 @@ from openai import AsyncOpenAI
 import structlog
 
 from core.config import settings
+from core.langfuse import create_trace
 
 logger = structlog.get_logger(__name__)
 
@@ -25,7 +26,10 @@ PIXABAY_API_KEY = settings.__dict__.get("pixabay_api_key", "")
 
 class AssetService:
     def __init__(self):
-        self.openai = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.openai = AsyncOpenAI(
+            api_key=settings.openai_api_key,
+            organization=settings.openai_org_id or None,
+        )
 
     async def find_assets_for_storyboard(
         self, storyboard: List[Dict], niche: str = "", style: str = "professional"
@@ -60,6 +64,17 @@ class AssetService:
         if scene_type == "generated":
             return await self.generate_image_dalle(query, scene_index)
         elif scene_type == "stock_video":
+            # Prefer AI-generated video (Kling/Runway) over stock footage
+            if video_generation_service.any_available:
+                duration = min(int(scene.get("duration_seconds", 5)), 10)
+                result = await video_generation_service.generate_video(
+                    prompt=query,
+                    scene_index=scene_index,
+                    duration_seconds=duration,
+                )
+                if result.get("url"):
+                    return result
+            # Fallback to Pexels stock video
             return await self.search_pexels_video(query, scene_index)
         else:
             # Try Pexels first, fallback to Pixabay, fallback to DALL-E
@@ -166,6 +181,11 @@ class AssetService:
 
     async def generate_image_dalle(self, prompt: str, scene_index: int) -> Dict:
         """Generate image with DALL-E 3 (~$0.04/image at 1024x1024)."""
+        trace = create_trace(
+            name="dalle3_image_generation",
+            input_data={"prompt": prompt, "scene_index": scene_index},
+            tags=["dalle3", "image_generation"],
+        )
         try:
             response = await self.openai.images.generate(
                 model="dall-e-3",
@@ -175,7 +195,7 @@ class AssetService:
                 n=1,
             )
 
-            return {
+            result = {
                 "scene_index": scene_index,
                 "type": "image",
                 "source": "dalle3",
@@ -184,8 +204,13 @@ class AssetService:
                 "query": prompt,
                 "cost": 0.04,  # $0.04 per image
             }
+            if trace:
+                trace.update(output={"url": result["url"]}, metadata={"cost_usd": 0.04})
+            return result
         except Exception as e:
             logger.error("DALL-E generation failed", error=str(e))
+            if trace:
+                trace.update(output={"error": str(e)})
             return {"scene_index": scene_index, "type": "none", "url": None}
 
     async def generate_thumbnail_concepts(
