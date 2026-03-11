@@ -14,6 +14,7 @@ from langgraph.checkpoint.memory import MemorySaver
 import operator
 
 from core.config import settings
+from core.langfuse import get_langfuse_callbacks
 
 logger = structlog.get_logger(__name__)
 
@@ -41,23 +42,27 @@ class AgentState(TypedDict):
 # LLM Factory
 # ============================================================
 
-def get_premium_llm() -> ChatOpenAI:
+def get_premium_llm(callbacks: list = None) -> ChatOpenAI:
     """GPT-4o for complex analysis and generation."""
     return ChatOpenAI(
         model=settings.openai_model_premium,
         api_key=settings.openai_api_key,
+        openai_organization=settings.openai_org_id or None,
         temperature=0.7,
         max_retries=3,
+        callbacks=callbacks or [],
     )
 
 
-def get_fast_llm() -> ChatOpenAI:
+def get_fast_llm(callbacks: list = None) -> ChatOpenAI:
     """GPT-4o-mini for fast drafts and scoring."""
     return ChatOpenAI(
         model=settings.openai_model_fast,
         api_key=settings.openai_api_key,
+        openai_organization=settings.openai_org_id or None,
         temperature=0.3,
         max_retries=3,
+        callbacks=callbacks or [],
     )
 
 
@@ -87,10 +92,15 @@ class BaseAgent(ABC):
     tools: list = []
 
     def __init__(self):
-        self.llm_premium = get_premium_llm()
-        self.llm_fast = get_fast_llm()
+        langfuse_callbacks = get_langfuse_callbacks(
+            trace_name=self.agent_id,
+            tags=[f"layer_{self.layer}", "agent"],
+        )
+        self.llm_premium = get_premium_llm(callbacks=langfuse_callbacks)
+        self.llm_fast = get_fast_llm(callbacks=langfuse_callbacks)
         self.logger = structlog.get_logger(self.__class__.__name__)
         self._graph = None
+        self._langfuse_callbacks = langfuse_callbacks
 
     def get_graph(self) -> StateGraph:
         if not self._graph:
