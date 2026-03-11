@@ -1,7 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 import structlog
+import asyncio
+import json
 
 from core.config import settings
 from core.database import init_db, close_db
@@ -80,3 +83,69 @@ async def root():
         "docs": "/docs",
         "health": "/health",
     }
+
+
+# ============================================================
+# Server-Sent Events — real-time agent run status
+# ============================================================
+
+@app.get("/api/v1/agents/runs/{run_id}/stream")
+async def stream_agent_run(run_id: str, request: Request):
+    """
+    SSE endpoint for real-time agent run status updates.
+    Frontend polls this to get live progress without websockets.
+    """
+    from sqlalchemy import select
+    from core.database import AsyncSessionLocal
+    from models.agent import AgentRun, AgentStatus
+    from uuid import UUID
+
+    async def event_generator():
+        last_status = None
+        max_polls = 300  # 5 minutes max at 1s intervals
+
+        for _ in range(max_polls):
+            if await request.is_disconnected():
+                break
+
+            try:
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(AgentRun).where(AgentRun.id == UUID(run_id))
+                    )
+                    run = result.scalar_one_or_none()
+
+                if not run:
+                    yield f"data: {json.dumps({'error': 'Run not found'})}\n\n"
+                    break
+
+                current_status = run.status.value if run.status else "unknown"
+                if current_status != last_status:
+                    payload = {
+                        "run_id": run_id,
+                        "status": current_status,
+                        "agent_id": run.agent_id,
+                        "output_data": run.output_data,
+                        "error_message": run.error_message,
+                        "duration_seconds": run.duration_seconds,
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
+                    last_status = current_status
+
+                if current_status in ("completed", "error", "cancelled"):
+                    break
+
+            except Exception as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                break
+
+            await asyncio.sleep(1.0)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

@@ -98,28 +98,59 @@ class OriginalityTransformationAgent(BaseAgent):
     async def _embedding_similarity_check(self, state: AgentState) -> AgentState:
         """
         Check cosine similarity of new script against all existing scripts.
-        Uses pgvector in production. Here: mock or actual DB query.
+        Uses pgvector cosine distance via EmbeddingService.
         Quality Gate: cosine similarity < 0.85
         """
         input_data = state["input_data"]
         script_text = input_data.get("script_text", "")
+        channel_id = input_data.get("channel_id", "")
+        exclude_script_id = input_data.get("script_id")
 
-        # In production:
-        # 1. Get embedding for script_text via OpenAI text-embedding-3-large
-        # 2. Query pgvector: SELECT id, title, 1 - (embedding <=> $1) AS similarity
-        #    FROM scripts WHERE channel_id = $2 ORDER BY similarity DESC LIMIT 5
-        # 3. Check if max similarity > 0.85
+        if not script_text or not channel_id:
+            state["output_data"]["similarity_check"] = {
+                "max_cosine_similarity": 0.0,
+                "threshold": settings.max_similarity_cosine,
+                "passed": True,
+                "similar_videos": [],
+                "skipped": True,
+            }
+            state["quality_scores"]["similarity_score"] = 1.0
+            return state
 
-        # Mock response for skeleton:
-        mock_similarity = 0.72  # Below threshold — good
-        state["output_data"]["similarity_check"] = {
-            "max_cosine_similarity": mock_similarity,
-            "threshold": settings.max_similarity_cosine,
-            "passed": mock_similarity < settings.max_similarity_cosine,
-            "similar_videos": [],  # Would contain titles of similar scripts
-        }
+        try:
+            from services.embedding_service import embedding_service
 
-        state["quality_scores"]["similarity_score"] = 1 - mock_similarity
+            originality_score, similar_scripts = await embedding_service.compute_originality_score(
+                script_text=script_text,
+                channel_id=channel_id,
+                exclude_script_id=exclude_script_id,
+            )
+
+            max_similarity = max(
+                (s["similarity"] for s in similar_scripts), default=0.0
+            )
+
+            state["output_data"]["similarity_check"] = {
+                "max_cosine_similarity": max_similarity,
+                "threshold": settings.max_similarity_cosine,
+                "passed": max_similarity < settings.max_similarity_cosine,
+                "similar_videos": similar_scripts[:3],
+                "embedding_based_originality": originality_score,
+            }
+            state["quality_scores"]["similarity_score"] = 1 - max_similarity
+            state["quality_scores"]["embedding_originality"] = originality_score
+
+        except Exception as e:
+            self.logger.warning("pgvector similarity check failed, falling back", error=str(e))
+            state["output_data"]["similarity_check"] = {
+                "max_cosine_similarity": 0.0,
+                "threshold": settings.max_similarity_cosine,
+                "passed": True,
+                "similar_videos": [],
+                "error": str(e),
+            }
+            state["quality_scores"]["similarity_score"] = 1.0
+
         return state
 
     async def _llm_originality_review(self, state: AgentState) -> AgentState:

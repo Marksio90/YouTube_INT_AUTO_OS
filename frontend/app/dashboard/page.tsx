@@ -1,5 +1,6 @@
 "use client";
 
+import { useDashboardOverview, useDashboardAlerts, useChannels, useAgents } from "@/hooks/useApi";
 import { StatCard } from "@/components/ui/stat-card";
 import { ScoreBadge } from "@/components/ui/score-badge";
 import { AgentCard } from "@/components/ui/agent-card";
@@ -127,10 +128,21 @@ const revenueByStreamData = [
 const PIE_COLORS = ["#ef4444", "#3b82f6", "#8b5cf6", "#f59e0b"];
 
 export default function DashboardPage() {
-  const totalRevenue = mockChannels.reduce((s, c) => s + c.revenue, 0);
-  const totalSubscribers = mockChannels.reduce((s, c) => s + c.subscribers, 0);
-  const totalViews = mockChannels.reduce((s, c) => s + c.views, 0);
-  const activeAgents = AGENTS.filter((a) => a.status === "running").length;
+  // Real API data — falls back to mock data if API is unavailable
+  const { data: overview } = useDashboardOverview();
+  const { data: apiAlerts } = useDashboardAlerts();
+  const { data: apiChannels } = useChannels();
+  const { data: apiAgents } = useAgents();
+
+  // Merge real data with mock fallback
+  const channels = (apiChannels as typeof mockChannels | null) ?? mockChannels;
+  const alerts = (apiAlerts as typeof mockAlerts | null) ?? mockAlerts;
+  const agentList = apiAgents ?? AGENTS;
+
+  const totalRevenue = overview?.total_revenue ?? mockChannels.reduce((s, c) => s + c.revenue, 0);
+  const totalSubscribers = overview?.total_subscribers ?? mockChannels.reduce((s, c) => s + c.subscribers, 0);
+  const totalViews = overview?.total_views ?? mockChannels.reduce((s, c) => s + c.views, 0);
+  const activeAgents = (agentList as Array<{status?: string}>).filter((a) => a.status === "running").length;
 
   return (
     <div className="p-6 space-y-6">
@@ -142,7 +154,7 @@ export default function DashboardPage() {
             Dashboard Glowny
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Portfolio: {mockChannels.length} kanaly | Marzec 2026
+            Portfolio: {channels.length} kanaly | Marzec 2026
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -293,7 +305,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {mockChannels.map((channel) => (
+              {channels.map((channel) => (
                 <tr key={channel.name} className="border-b border-border/50 hover:bg-muted/30">
                   <td className="py-3 px-3">
                     <div>
@@ -360,11 +372,11 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-foreground">Alerty i Powiadomienia</h2>
             <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-              {mockAlerts.length} nowe
+              {alerts.length} nowe
             </span>
           </div>
           <div className="space-y-2">
-            {mockAlerts.map((alert, i) => (
+            {alerts.map((alert, i) => (
               <div
                 key={i}
                 className={cn(
@@ -405,13 +417,13 @@ export default function DashboardPage() {
                   LAYER_COLORS[layer].border
                 )}
               >
-                L{layer}: {AGENTS.filter((a) => a.layer === layer).length}
+                L{layer}: {(agentList as Array<{layer?: number}>).filter((a) => a.layer === layer).length}
               </span>
             ))}
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-          {AGENTS.map((agent) => (
+          {(agentList as typeof AGENTS).map((agent) => (
             <AgentCard key={agent.id} agent={agent} compact />
           ))}
         </div>

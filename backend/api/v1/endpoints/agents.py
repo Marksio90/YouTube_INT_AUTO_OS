@@ -158,8 +158,44 @@ async def get_agent_history(
 
 
 async def _execute_agent_background(run_id: str, agent_id: str, input_data: dict):
-    """Background task placeholder for actual LangGraph execution."""
-    # In production: import and execute the actual LangGraph agent graph
-    # from agents.strategic.niche_hunter import niche_hunter_graph
-    # result = await niche_hunter_graph.ainvoke(input_data)
-    pass
+    """Dispatch to the correct Celery task for the given agent_id."""
+    from tasks.agent_tasks import (
+        run_niche_hunter, run_opportunity_mapper, run_competitive_deconstruction,
+        run_channel_architect, run_script_strategist,
+        run_hook_specialist, run_retention_editor,
+        run_thumbnail_psychology, run_title_architect, run_storyboard,
+        run_format_localizer, run_audio_polish, run_caption,
+        run_seo_intelligence, run_watch_time_forensics, run_experimentation,
+        run_originality_check, run_rights_risk, run_monetization_readiness,
+    )
+
+    TASK_MAP = {
+        "niche_hunter": run_niche_hunter,
+        "opportunity_mapper": run_opportunity_mapper,
+        "competitive_deconstruction": run_competitive_deconstruction,
+        "channel_architect": run_channel_architect,
+        "script_strategist": run_script_strategist,
+        "hook_specialist": run_hook_specialist,
+        "retention_editor": run_retention_editor,
+        "thumbnail_psychology": run_thumbnail_psychology,
+        "title_architect": run_title_architect,
+        "storyboard": run_storyboard,
+        "format_localizer": run_format_localizer,
+        "audio_polish": run_audio_polish,
+        "caption": run_caption,
+        "seo_intelligence": run_seo_intelligence,
+        "watch_time_forensics": run_watch_time_forensics,
+        "experimentation": run_experimentation,
+        "originality_transformation": run_originality_check,
+        "rights_risk": run_rights_risk,
+        "monetization_readiness": run_monetization_readiness,
+    }
+
+    task = TASK_MAP.get(agent_id)
+    if task:
+        task.delay(run_id, input_data)
+    else:
+        import structlog
+        structlog.get_logger(__name__).warning(
+            "No Celery task for agent", agent_id=agent_id
+        )
