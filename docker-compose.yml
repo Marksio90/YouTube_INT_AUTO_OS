@@ -1,0 +1,137 @@
+version: "3.9"
+
+services:
+  # ============================================================
+  # PostgreSQL 16 with pgvector
+  # ============================================================
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ytautos_postgres
+    environment:
+      POSTGRES_USER: ytautos
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ytautos_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ytautos -d ytautos_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # Redis (Cache + Celery Queue)
+  # ============================================================
+  redis:
+    image: redis:7.4-alpine
+    container_name: ytautos_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ============================================================
+  # FastAPI Backend
+  # ============================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ytautos_backend
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://ytautos:password@postgres:5432/ytautos_db
+      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================
+  # Celery Worker (MVP background task processor)
+  # ============================================================
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ytautos_celery
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+asyncpg://ytautos:password@postgres:5432/ytautos_db
+      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+      - postgres
+    command: celery -A core.celery_app worker --loglevel=info --concurrency=4
+    profiles:
+      - production
+
+  # ============================================================
+  # Next.js Frontend
+  # ============================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ytautos_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+      NEXT_PUBLIC_APP_NAME: "YouTube Intelligence & Automation OS"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    command: npm run dev
+
+  # ============================================================
+  # Langfuse (LLM Monitoring) — optional, start with profile
+  # ============================================================
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: ytautos_langfuse
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://ytautos:password@postgres:5432/langfuse_db
+      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_SECRET: langfuse-dev-secret-key
+      SALT: langfuse-salt
+    depends_on:
+      - postgres
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
