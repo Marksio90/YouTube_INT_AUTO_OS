@@ -1,5 +1,6 @@
 """
-Video Assembly Service — FFmpeg Pipeline
+Video Assembly Service — FFmpeg Pipeline with Chunked Parallel Rendering.
+
 Składa finalny film z komponentów:
 - Voice track (ElevenLabs MP3)
 - B-roll assets (Pexels/DALL-E images + short clips)
@@ -9,13 +10,26 @@ Składa finalny film z komponentów:
 - Transition effects
 
 Renderuje do H.264 MP4, 1080p, 30fps.
+
+Chunked Parallel Rendering (Map-Reduce):
+- Divides scenes into N equal chunks (default: 4)
+- Renders each chunk concurrently with asyncio.gather
+- Concatenates chunks using ffmpeg concat demuxer
+- Reduces render time by ~4x on multi-core machines
+- Falls back to sequential rendering if any chunk fails
+
+GPU Acceleration:
+- Detects NVENC availability at startup
+- Swaps libx264 → h264_nvenc when GPU is present
+- Falls back to CPU transparently
 """
 import asyncio
 import tempfile
 import os
 import json
+import math
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 import httpx
 import structlog
 
@@ -25,7 +39,28 @@ from core.langfuse import create_trace
 
 logger = structlog.get_logger(__name__)
 
-# FFmpeg output profiles
+# ── GPU Acceleration Detection ──────────────────────────────────────────────
+def _detect_gpu_encoder() -> str:
+    """
+    Check if NVENC is available. Returns 'h264_nvenc' or 'libx264'.
+    Cached after first call.
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-encoders"],
+            capture_output=True, text=True, timeout=5
+        )
+        if "h264_nvenc" in result.stdout:
+            return "h264_nvenc"
+    except Exception:
+        pass
+    return "libx264"
+
+
+_GPU_ENCODER: str = _detect_gpu_encoder()
+
+# ── FFmpeg output profiles ────────────────────────────────────────────────────
 PROFILES = {
     "youtube_1080p": {
         "resolution": "1920x1080",
@@ -61,9 +96,19 @@ PROFILES = {
 
 
 class VideoAssemblyService:
+    # How many parallel chunks to render (tune per machine CPU/GPU count)
+    CHUNK_COUNT: int = 4
+    # Minimum scenes per chunk before we bother parallelising
+    MIN_SCENES_FOR_PARALLEL: int = 4
+
     def __init__(self):
         self.tmp_dir = Path(tempfile.gettempdir()) / "ytautos_render"
         self.tmp_dir.mkdir(exist_ok=True)
+        logger.info(
+            "VideoAssemblyService initialised",
+            gpu_encoder=_GPU_ENCODER,
+            chunk_count=self.CHUNK_COUNT,
+        )
 
     async def assemble(
         self,
@@ -75,18 +120,35 @@ class VideoAssemblyService:
         video_project_id: Optional[str] = None,
         profile: str = "youtube_1080p",
         output_format: str = "long_form",
+        parallel: bool = True,
     ) -> Dict:
         """
-        Full video assembly pipeline.
-        Returns {video_url, duration_seconds, size_bytes}.
-        """
-        import ffmpeg
+        Full video assembly pipeline with optional chunked parallel rendering.
 
-        job_id = video_project_id or f"render_{asyncio.get_event_loop().time():.0f}"
+        When parallel=True and scenes >= MIN_SCENES_FOR_PARALLEL:
+          1. Split scenes into CHUNK_COUNT groups
+          2. Render each group concurrently (asyncio.gather)
+          3. Concat rendered chunks via ffmpeg concat demuxer
+          Fallback: if any chunk fails, re-render sequentially.
+
+        Returns {video_url, duration_seconds, size_bytes, render_mode}.
+        """
+        job_id = video_project_id or f"render_{int(asyncio.get_event_loop().time())}"
         work_dir = self.tmp_dir / job_id
         work_dir.mkdir(exist_ok=True)
 
-        logger.info("Video assembly started", job_id=job_id, profile=profile)
+        render_profile = PROFILES.get(profile, PROFILES["youtube_1080p"])
+        # Swap in GPU encoder if available
+        if _GPU_ENCODER != "libx264":
+            render_profile = {**render_profile, "video_codec": _GPU_ENCODER, "crf": "0", "preset": "p4"}
+
+        logger.info(
+            "Video assembly started",
+            job_id=job_id,
+            profile=profile,
+            gpu=_GPU_ENCODER,
+            parallel=parallel,
+        )
 
         try:
             # 1. Download voice track
@@ -101,23 +163,52 @@ class VideoAssemblyService:
                 storyboard, assets, work_dir, voice_duration
             )
 
-            # 4. Build video timeline with ffmpeg-python
+            # 4. Render: parallel chunks or sequential fallback
             output_path = work_dir / f"output_{job_id}.mp4"
-            await self._render_video(
-                voice_path=str(voice_path),
-                scene_videos=scene_videos,
-                output_path=str(output_path),
-                captions_srt=captions_srt,
-                music_url=music_url,
-                work_dir=work_dir,
-                profile=PROFILES.get(profile, PROFILES["youtube_1080p"]),
-            )
+            render_mode = "sequential"
+
+            if parallel and len(scene_videos) >= self.MIN_SCENES_FOR_PARALLEL:
+                try:
+                    await self._render_parallel(
+                        voice_path=str(voice_path),
+                        scene_videos=scene_videos,
+                        output_path=str(output_path),
+                        captions_srt=captions_srt,
+                        music_url=music_url,
+                        work_dir=work_dir,
+                        profile=render_profile,
+                    )
+                    render_mode = "parallel"
+                except Exception as chunk_err:
+                    logger.warning(
+                        "Parallel render failed, falling back to sequential",
+                        error=str(chunk_err),
+                    )
+                    await self._render_video(
+                        voice_path=str(voice_path),
+                        scene_videos=scene_videos,
+                        output_path=str(output_path),
+                        captions_srt=captions_srt,
+                        music_url=music_url,
+                        work_dir=work_dir,
+                        profile=render_profile,
+                    )
+            else:
+                await self._render_video(
+                    voice_path=str(voice_path),
+                    scene_videos=scene_videos,
+                    output_path=str(output_path),
+                    captions_srt=captions_srt,
+                    music_url=music_url,
+                    work_dir=work_dir,
+                    profile=render_profile,
+                )
 
             # 5. Upload to R2
             key = f"videos/{video_project_id or 'standalone'}/final.mp4"
             video_url = await storage_service.upload_file(str(output_path), key, "video/mp4")
 
-            # 6. Get final duration
+            # 6. Final metadata
             final_duration = await self._get_video_duration(str(output_path))
             size_bytes = output_path.stat().st_size
 
@@ -126,6 +217,7 @@ class VideoAssemblyService:
                 job_id=job_id,
                 duration=final_duration,
                 size_mb=round(size_bytes / 1024 / 1024, 1),
+                render_mode=render_mode,
                 url=video_url,
             )
 
@@ -134,16 +226,197 @@ class VideoAssemblyService:
                 "duration_seconds": final_duration,
                 "size_bytes": size_bytes,
                 "profile": profile,
+                "render_mode": render_mode,
+                "gpu_encoder": _GPU_ENCODER,
             }
 
         except Exception as e:
             logger.error("Video assembly failed", job_id=job_id, error=str(e))
             raise
         finally:
-            # Cleanup temp files
             import shutil
             if work_dir.exists():
                 shutil.rmtree(work_dir, ignore_errors=True)
+
+    # ── Parallel (Map-Reduce) Rendering ──────────────────────────────────────
+
+    async def _render_parallel(
+        self,
+        voice_path: str,
+        scene_videos: List[Dict],
+        output_path: str,
+        captions_srt: Optional[str],
+        music_url: Optional[str],
+        work_dir: Path,
+        profile: Dict,
+    ) -> None:
+        """
+        Map step: split scenes into CHUNK_COUNT groups, render each in parallel.
+        Reduce step: concat rendered chunks with ffmpeg concat demuxer.
+        """
+        n_chunks = min(self.CHUNK_COUNT, len(scene_videos))
+        chunk_size = math.ceil(len(scene_videos) / n_chunks)
+        chunks = [
+            scene_videos[i: i + chunk_size]
+            for i in range(0, len(scene_videos), chunk_size)
+        ]
+
+        logger.info(
+            "Parallel render: map phase",
+            n_chunks=len(chunks),
+            scenes_per_chunk=chunk_size,
+        )
+
+        # ── Map: render each chunk to its own temp file ───────────────────────
+        chunk_paths: List[str] = []
+        chunk_tasks = []
+
+        for chunk_idx, chunk_scenes in enumerate(chunks):
+            chunk_out = str(work_dir / f"chunk_{chunk_idx:03d}.mp4")
+            chunk_paths.append(chunk_out)
+
+            # Each chunk gets a silent voice (we mix audio at concat step)
+            chunk_tasks.append(
+                self._render_chunk(
+                    chunk_scenes=chunk_scenes,
+                    chunk_index=chunk_idx,
+                    output_path=chunk_out,
+                    work_dir=work_dir,
+                    profile=profile,
+                )
+            )
+
+        # Run all chunks concurrently
+        await asyncio.gather(*chunk_tasks)
+
+        # ── Reduce: concat all chunks + add audio in one pass ─────────────────
+        await self._concat_chunks(
+            chunk_paths=chunk_paths,
+            voice_path=voice_path,
+            music_url=music_url,
+            captions_srt=captions_srt,
+            output_path=output_path,
+            work_dir=work_dir,
+            profile=profile,
+        )
+
+    async def _render_chunk(
+        self,
+        chunk_scenes: List[Dict],
+        chunk_index: int,
+        output_path: str,
+        work_dir: Path,
+        profile: Dict,
+    ) -> None:
+        """
+        Render a single chunk of scenes to a muted MP4 (no audio).
+        Audio is mixed at the concat step to avoid desync.
+        """
+        inputs = []
+        filter_parts = []
+        concat_parts = []
+
+        for i, scene in enumerate(chunk_scenes):
+            if scene["path"] and os.path.exists(scene["path"]):
+                if scene["type"] == "image":
+                    inputs.extend([
+                        "-loop", "1",
+                        "-t", str(scene["duration"]),
+                        "-i", scene["path"],
+                    ])
+                else:
+                    inputs.extend(["-i", scene["path"]])
+                filter_parts.append(
+                    f"[{i}:v]scale={profile['resolution']},setsar=1,fps={profile['fps']}[v{i}]"
+                )
+            else:
+                filter_parts.append(
+                    f"color=black:s={profile['resolution']}:r={profile['fps']}:d={scene['duration']}[v{i}]"
+                )
+            concat_parts.append(f"[v{i}]")
+
+        n = len(chunk_scenes)
+        filter_complex = (
+            ";".join(filter_parts)
+            + f";{''.join(concat_parts)}concat=n={n}:v=1:a=0[vout]"
+        )
+
+        cmd = [
+            "ffmpeg", "-y",
+            *inputs,
+            "-filter_complex", filter_complex,
+            "-map", "[vout]",
+            "-an",                              # No audio in chunk
+            "-c:v", profile["video_codec"],
+            "-crf", str(profile["crf"]),
+            "-preset", profile["preset"],
+            "-pix_fmt", "yuv420p",
+            output_path,
+        ]
+
+        logger.debug("Rendering chunk", chunk=chunk_index, scenes=n)
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise Exception(
+                f"Chunk {chunk_index} render failed: {stderr.decode()[-300:]}"
+            )
+
+    async def _concat_chunks(
+        self,
+        chunk_paths: List[str],
+        voice_path: str,
+        music_url: Optional[str],
+        captions_srt: Optional[str],
+        output_path: str,
+        work_dir: Path,
+        profile: Dict,
+    ) -> None:
+        """
+        Reduce step: concatenate chunk MP4s using concat demuxer, then mix audio.
+        Using concat demuxer (not filter) avoids re-encoding video — much faster.
+        """
+        # Write concat list file
+        concat_list = work_dir / "concat_list.txt"
+        concat_list.write_text(
+            "\n".join(f"file '{p}'" for p in chunk_paths),
+            encoding="utf-8",
+        )
+
+        # First pass: concat video chunks (copy codec — no re-encode)
+        concat_video = str(work_dir / "concat_video.mp4")
+        concat_cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(concat_list),
+            "-c", "copy",
+            concat_video,
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *concat_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise Exception(f"Concat failed: {stderr.decode()[-300:]}")
+
+        # Second pass: add voice + music + captions on top of concat_video
+        await self._render_video(
+            voice_path=voice_path,
+            scene_videos=[],            # scenes already rendered — skip
+            output_path=output_path,
+            captions_srt=captions_srt,
+            music_url=music_url,
+            work_dir=work_dir,
+            profile=profile,
+            prerendered_video=concat_video,   # Use already-rendered video
+        )
 
     async def _prepare_scenes(
         self,
@@ -198,11 +471,28 @@ class VideoAssemblyService:
         music_url: Optional[str],
         work_dir: Path,
         profile: Dict,
+        prerendered_video: Optional[str] = None,
     ):
-        """Build FFmpeg command and execute."""
-        import subprocess
+        """
+        Build FFmpeg command and execute.
 
-        # Build FFmpeg filter complex
+        If prerendered_video is provided (from parallel chunk concat), skip
+        scene rendering and only mix audio + captions onto that video.
+        """
+        if prerendered_video:
+            # Audio-only pass: overlay voice + music on pre-rendered video
+            await self._mix_audio_onto_video(
+                prerendered_video=prerendered_video,
+                voice_path=voice_path,
+                music_url=music_url,
+                captions_srt=captions_srt,
+                output_path=output_path,
+                work_dir=work_dir,
+                profile=profile,
+            )
+            return
+
+        # ── Full sequential render (original path) ────────────────────────────
         inputs = ["-i", voice_path]
         filter_parts = []
         concat_parts = []
@@ -210,7 +500,6 @@ class VideoAssemblyService:
         for i, scene in enumerate(scene_videos):
             if scene["path"] and os.path.exists(scene["path"]):
                 if scene["type"] == "image":
-                    # Loop image for scene duration
                     inputs.extend([
                         "-loop", "1",
                         "-t", str(scene["duration"]),
@@ -219,13 +508,11 @@ class VideoAssemblyService:
                 else:
                     inputs.extend(["-i", scene["path"]])
 
-                vid_idx = (i + 1) * 2  # offset for voice track at index 0
                 filter_parts.append(
                     f"[{i + 1}:v]scale={profile['resolution']},setsar=1[v{i}]"
                 )
                 concat_parts.append(f"[v{i}]")
             else:
-                # Black frame as fallback
                 filter_parts.append(
                     f"color=black:s={profile['resolution']}:d={scene['duration']}[v{i}]"
                 )
@@ -235,22 +522,25 @@ class VideoAssemblyService:
         filter_complex = ";".join(filter_parts)
         filter_complex += f";{''.join(concat_parts)}concat=n={n_scenes}:v=1:a=0[vout]"
 
-        # Add music if provided
         audio_filter = "[0:a]"
         if music_url:
             music_path = work_dir / "music.mp3"
             await self._download_asset(music_url, music_path)
             inputs.extend(["-i", str(music_path)])
             music_idx = n_scenes + 1
-            # Duck music under voice: voice at 1.0, music at 0.12
-            filter_complex += f";[0:a]volume=1.0[voice];[{music_idx}:a]volume=0.12[music];[voice][music]amix=inputs=2:duration=first[aout]"
+            filter_complex += (
+                f";[0:a]volume=1.0[voice];[{music_idx}:a]volume=0.12[music]"
+                f";[voice][music]amix=inputs=2:duration=first[aout]"
+            )
             audio_filter = "[aout]"
 
-        # Burn-in captions if provided
         if captions_srt:
             srt_path = work_dir / "captions.srt"
             srt_path.write_text(captions_srt, encoding="utf-8")
-            filter_complex += f";[vout]subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Bold=1,Outline=2'[vfinal]"
+            filter_complex += (
+                f";[vout]subtitles={srt_path}:force_style="
+                f"'FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Bold=1,Outline=2'[vfinal]"
+            )
             video_out = "[vfinal]"
         else:
             video_out = "[vout]"
@@ -262,16 +552,16 @@ class VideoAssemblyService:
             "-map", video_out,
             "-map", audio_filter,
             "-c:v", profile["video_codec"],
-            "-crf", profile["crf"],
+            "-crf", str(profile["crf"]),
             "-preset", profile["preset"],
             "-c:a", profile["audio_codec"],
             "-b:a", profile["audio_bitrate"],
-            "-movflags", "+faststart",  # Streaming optimization
+            "-movflags", "+faststart",
             "-pix_fmt", "yuv420p",
             output_path,
         ]
 
-        logger.debug("FFmpeg command", cmd=" ".join(cmd[:10]) + "...")
+        logger.debug("FFmpeg command (sequential)", cmd=" ".join(cmd[:10]) + "...")
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -282,6 +572,73 @@ class VideoAssemblyService:
 
         if proc.returncode != 0:
             raise Exception(f"FFmpeg failed: {stderr.decode()[-500:]}")
+
+    async def _mix_audio_onto_video(
+        self,
+        prerendered_video: str,
+        voice_path: str,
+        music_url: Optional[str],
+        captions_srt: Optional[str],
+        output_path: str,
+        work_dir: Path,
+        profile: Dict,
+    ) -> None:
+        """
+        Overlay voice + optional music onto an already-rendered muted video.
+        Used as the Reduce step after parallel chunk rendering.
+        """
+        inputs = ["-i", prerendered_video, "-i", voice_path]
+        filter_parts = ["[0:v]copy[vout]"]
+
+        audio_filter = "[1:a]"
+        if music_url:
+            music_path = work_dir / "music.mp3"
+            if not music_path.exists():
+                await self._download_asset(music_url, music_path)
+            inputs.extend(["-i", str(music_path)])
+            filter_parts.append(
+                "[1:a]volume=1.0[voice];[2:a]volume=0.12[music]"
+                ";[voice][music]amix=inputs=2:duration=first[aout]"
+            )
+            audio_filter = "[aout]"
+
+        if captions_srt:
+            srt_path = work_dir / "captions.srt"
+            if not srt_path.exists():
+                srt_path.write_text(captions_srt, encoding="utf-8")
+            filter_parts[0] = (
+                f"[0:v]subtitles={srt_path}:force_style="
+                f"'FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,"
+                f"Bold=1,Outline=2'[vout]"
+            )
+
+        filter_complex = ";".join(filter_parts)
+
+        cmd = [
+            "ffmpeg", "-y",
+            *inputs,
+            "-filter_complex", filter_complex,
+            "-map", "[vout]",
+            "-map", audio_filter,
+            "-c:v", "copy",             # Re-encode only if captions added
+            "-c:a", profile["audio_codec"],
+            "-b:a", profile["audio_bitrate"],
+            "-movflags", "+faststart",
+            output_path,
+        ]
+
+        # If captions need burn-in, we must re-encode video
+        if captions_srt:
+            cmd[cmd.index("copy")] = profile["video_codec"]
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise Exception(f"Audio mix failed: {stderr.decode()[-300:]}")
 
     async def generate_captions(self, voice_track_url: str, video_project_id: str = None) -> str:
         """
