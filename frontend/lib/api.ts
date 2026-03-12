@@ -66,6 +66,10 @@ export const authApi = {
     const res = await api.get("/api/v1/auth/me");
     return res.data;
   },
+  refresh: async (refreshToken: string) => {
+    const res = await api.post("/api/v1/auth/refresh", { refresh_token: refreshToken });
+    return res.data;
+  },
 };
 
 // ============================================================
