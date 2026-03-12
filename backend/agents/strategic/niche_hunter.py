@@ -92,12 +92,14 @@ class NicheHunterAgent(BaseAgent):
         workflow.add_edge("find_content_gaps", "quality_gate")
         workflow.add_edge("quality_gate", END)
 
-        return workflow.compile()
+        return workflow.compile(checkpointer=self._checkpointer)
 
     async def _analyze_niche(self, state: AgentState) -> AgentState:
         """Step 1: LLM analysis of the niche."""
         input_data = state["input_data"]
-        chain = NICHE_ANALYSIS_PROMPT | self.llm_premium
+        # MACRO tier — multi-factor strategic reasoning
+        analysis_llm = self.get_routed_llm("niche_analysis", context_length=500)
+        chain = NICHE_ANALYSIS_PROMPT | analysis_llm
 
         response = await chain.ainvoke({
             "niche_name": input_data.get("niche_name", ""),
@@ -180,9 +182,9 @@ class NicheHunterAgent(BaseAgent):
         start = time.time()
 
         graph = self.get_graph()
-        initial_state = self._initial_state(input_data)
-
-        final_state = await graph.ainvoke(initial_state)
+        run_id = f"{self.agent_id}-{time.time()}"
+        config = {"configurable": {"thread_id": run_id}}
+        final_state = await graph.ainvoke(self._initial_state(input_data, run_id=run_id), config)
 
         duration = time.time() - start
         self._log_complete(final_state["output_data"], duration)

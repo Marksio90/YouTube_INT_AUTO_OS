@@ -90,11 +90,13 @@ class TitleArchitectAgent(BaseAgent):
         workflow.add_edge("evaluate_titles", "finalize")
         workflow.add_edge("finalize", END)
 
-        return workflow.compile()
+        return workflow.compile(checkpointer=self._checkpointer)
 
     async def _generate_titles(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = TITLE_GENERATION_PROMPT | self.llm_premium
+        # MACRO tier — multi-variant title generation with SEO
+        title_llm = self.get_routed_llm("generate_title_variants", context_length=1000)
+        chain = TITLE_GENERATION_PROMPT | title_llm
 
         response = await chain.ainvoke({
             "topic": input_data.get("topic", input_data.get("title", "")),
@@ -178,7 +180,9 @@ class TitleArchitectAgent(BaseAgent):
         self._log_start(input_data)
         start = time.time()
         graph = self.get_graph()
-        final_state = await graph.ainvoke(self._initial_state(input_data))
+        run_id = f"{self.agent_id}-{time.time()}"
+        config = {"configurable": {"thread_id": run_id}}
+        final_state = await graph.ainvoke(self._initial_state(input_data, run_id=run_id), config)
         duration = time.time() - start
         self._log_complete(final_state["output_data"], duration)
         return {**final_state["output_data"], "agent_id": self.agent_id, "duration_seconds": round(duration, 2)}

@@ -93,7 +93,7 @@ class OriginalityTransformationAgent(BaseAgent):
         workflow.add_edge("template_overuse_check", "finalize_report")
         workflow.add_edge("finalize_report", END)
 
-        return workflow.compile()
+        return workflow.compile(checkpointer=self._checkpointer)
 
     async def _embedding_similarity_check(self, state: AgentState) -> AgentState:
         """
@@ -156,7 +156,9 @@ class OriginalityTransformationAgent(BaseAgent):
     async def _llm_originality_review(self, state: AgentState) -> AgentState:
         """LLM review of originality and transformation level."""
         input_data = state["input_data"]
-        chain = ORIGINALITY_CHECK_PROMPT | self.llm_premium
+        # EXPERT tier — adversarial compliance review (high stakes)
+        compliance_llm = self.get_routed_llm("deep_originality_check", context_length=2000)
+        chain = ORIGINALITY_CHECK_PROMPT | compliance_llm
 
         response = await chain.ainvoke({
             "title": input_data.get("title", ""),
@@ -247,7 +249,9 @@ class OriginalityTransformationAgent(BaseAgent):
         self._log_start(input_data)
         start = time.time()
         graph = self.get_graph()
-        final_state = await graph.ainvoke(self._initial_state(input_data))
+        run_id = f"{self.agent_id}-{time.time()}"
+        config = {"configurable": {"thread_id": run_id}}
+        final_state = await graph.ainvoke(self._initial_state(input_data, run_id=run_id), config)
         duration = time.time() - start
         self._log_complete(final_state["output_data"], duration)
         return {**final_state["output_data"], "agent_id": self.agent_id, "duration_seconds": round(duration, 2)}
