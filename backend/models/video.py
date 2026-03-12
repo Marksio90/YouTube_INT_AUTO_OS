@@ -81,6 +81,12 @@ class VideoProject(Base, UUIDMixin, TimestampMixin):
     script = relationship("Script", back_populates="video", foreign_keys=[script_id])
     compliance_report = relationship("ComplianceReport", back_populates="video", uselist=False)
     analytics = relationship("VideoAnalytics", back_populates="video", uselist=False)
+    events = relationship(
+        "VideoEvent",
+        back_populates="video_project",
+        order_by="VideoEvent.occurred_at",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
         return f"<VideoProject {self.title[:50]} ({self.stage})>"

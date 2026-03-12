@@ -140,3 +140,136 @@ def flush():
 def is_enabled() -> bool:
     """Return True if Langfuse monitoring is active."""
     return _langfuse_available
+
+
+# ============================================================
+# Closed-Loop Feedback — YouTube Analytics → Langfuse Scores
+# ============================================================
+
+def score_session_retention(
+    session_id: str,
+    avg_retention_pct: float,
+    drop_at_30s: bool = False,
+    hook_variant: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Submit a YouTube retention outcome as a Langfuse score on the session
+    that produced the video.
+
+    This closes the feedback loop:
+      Agent run (session_id=video_project_id)
+        → Langfuse trace
+          → YouTube Analytics pulled at T+24h
+            → score_session_retention(session_id=video_project_id, avg=42%)
+              → Langfuse shows score "youtube_retention=0.42" on that trace
+
+    Over time, low-scored prompts can be identified and updated.
+
+    Args:
+        session_id:         video_project_id (used as Langfuse session_id)
+        avg_retention_pct:  0-100 float from YouTube Analytics
+        drop_at_30s:        True if hook caused early drop (first 30s)
+        hook_variant:       Pattern used (e.g. "curiosity_gap")
+        extra:              Additional metadata to attach as comment JSON
+    """
+    if not _langfuse_available or not _langfuse_client:
+        return
+
+    comment_parts = [f"avg_retention={avg_retention_pct:.1f}%"]
+    if drop_at_30s:
+        comment_parts.append("early_drop=true (hook may be weak)")
+    if hook_variant:
+        comment_parts.append(f"hook_variant={hook_variant}")
+    if extra:
+        import json as _json
+        comment_parts.append(_json.dumps(extra, ensure_ascii=False)[:200])
+
+    try:
+        _langfuse_client.score(
+            name="youtube_retention",
+            value=round(avg_retention_pct / 100.0, 4),
+            comment=" | ".join(comment_parts),
+            session_id=session_id,
+        )
+
+        # Also submit binary pass/fail for easy filtering
+        _langfuse_client.score(
+            name="retention_gate_real",
+            value=1.0 if avg_retention_pct >= 45.0 else 0.0,
+            comment=f"Gate threshold: 45% | actual: {avg_retention_pct:.1f}%",
+            session_id=session_id,
+        )
+
+        logger.info(
+            "Langfuse retention feedback scored",
+            session_id=session_id,
+            retention=avg_retention_pct,
+        )
+    except Exception as e:
+        logger.warning("Langfuse score submission failed", error=str(e))
+
+
+def score_session_ctr(
+    session_id: str,
+    ctr_pct: float,
+    title_variant: Optional[str] = None,
+    thumbnail_style: Optional[str] = None,
+) -> None:
+    """
+    Submit Click-Through Rate as a Langfuse score.
+    Feeds back into title_architect and thumbnail_psychology agents.
+    """
+    if not _langfuse_available or not _langfuse_client:
+        return
+
+    comment = f"ctr={ctr_pct:.2f}%"
+    if title_variant:
+        comment += f" | title_variant={title_variant}"
+    if thumbnail_style:
+        comment += f" | thumbnail_style={thumbnail_style}"
+
+    try:
+        _langfuse_client.score(
+            name="youtube_ctr",
+            value=round(ctr_pct / 100.0, 4),
+            comment=comment,
+            session_id=session_id,
+        )
+        logger.info(
+            "Langfuse CTR feedback scored",
+            session_id=session_id,
+            ctr=ctr_pct,
+        )
+    except Exception as e:
+        logger.warning("Langfuse CTR score failed", error=str(e))
+
+
+def score_model_router_decision(
+    session_id: str,
+    task_type: str,
+    model_id: str,
+    cost_tier: str,
+    quality_gate_passed: bool,
+) -> None:
+    """
+    Record a Model Router decision as a Langfuse score.
+    Enables cost vs. quality analysis: which tasks need expensive models?
+    """
+    if not _langfuse_available or not _langfuse_client:
+        return
+
+    cost_map = {"very_low": 0.02, "low": 0.10, "medium": 0.50, "high": 1.0}
+
+    try:
+        _langfuse_client.score(
+            name="model_cost_tier",
+            value=cost_map.get(cost_tier, 0.5),
+            comment=(
+                f"task={task_type} | model={model_id} | "
+                f"gate_passed={quality_gate_passed}"
+            ),
+            session_id=session_id,
+        )
+    except Exception as e:
+        logger.warning("Langfuse model router score failed", error=str(e))
