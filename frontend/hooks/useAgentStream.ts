@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 
 interface AgentRunEvent {
   run_id: string;
@@ -10,27 +10,47 @@ interface AgentRunEvent {
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem("auth-storage");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.token ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export function useAgentStream(runId: string | null) {
   const [event, setEvent] = useState<AgentRunEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const esRef = useRef<EventSource | null>(null);
+  const attemptRef = useRef(0);
+  const terminalRef = useRef(false);
 
-  useEffect(() => {
-    if (!runId) return;
+  const connect = useCallback(() => {
+    if (!runId || terminalRef.current) return;
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    const token = getAuthToken();
     const url = `${API_BASE_URL}/api/v1/agents/runs/${runId}/stream${token ? `?token=${token}` : ""}`;
 
     const es = new EventSource(url);
     esRef.current = es;
-    setIsConnected(true);
+
+    es.onopen = () => {
+      setIsConnected(true);
+      attemptRef.current = 0;
+    };
 
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data) as AgentRunEvent;
         setEvent(data);
-        if (data.status === "completed" || data.status === "error") {
+        if (data.status === "completed" || data.status === "error" || data.status === "cancelled") {
+          terminalRef.current = true;
           es.close();
           setIsConnected(false);
         }
@@ -42,13 +62,27 @@ export function useAgentStream(runId: string | null) {
     es.onerror = () => {
       es.close();
       setIsConnected(false);
-    };
 
-    return () => {
-      es.close();
-      setIsConnected(false);
+      // Reconnect with exponential backoff unless terminal state reached
+      if (!terminalRef.current && attemptRef.current < MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(1000 * 2 ** attemptRef.current, 16000);
+        attemptRef.current += 1;
+        setTimeout(connect, delay);
+      }
     };
   }, [runId]);
+
+  useEffect(() => {
+    terminalRef.current = false;
+    attemptRef.current = 0;
+    connect();
+
+    return () => {
+      terminalRef.current = true;
+      esRef.current?.close();
+      setIsConnected(false);
+    };
+  }, [connect]);
 
   return { event, isConnected };
 }
