@@ -1,5 +1,6 @@
 from sqlalchemy import Column, String, Integer, Float, Boolean, Text, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
 import enum
 from models.base import TimestampMixin, UUIDMixin
 from core.database import Base
@@ -44,6 +45,8 @@ class AgentRun(Base, UUIDMixin, TimestampMixin):
 class NicheAnalysis(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "niche_analyses"
 
+    channel_id = Column(UUID(as_uuid=True), ForeignKey("channels.id"), nullable=True, index=True)
+
     name = Column(String(255), nullable=False)
     category = Column(String(255))
     overall_score = Column(Float)
@@ -64,6 +67,8 @@ class NicheAnalysis(Base, UUIDMixin, TimestampMixin):
     opportunity_map = Column(JSONB, default={})
 
     raw_data = Column(JSONB, default={})
+
+    channel = relationship("Channel", back_populates="niche_analyses")
 
 
 class Experiment(Base, UUIDMixin, TimestampMixin):
@@ -87,8 +92,3 @@ class Experiment(Base, UUIDMixin, TimestampMixin):
 
     def __repr__(self):
         return f"<Experiment {self.experiment_type} ({self.status})>"
-
-
-# Import relationship fix
-from sqlalchemy.orm import relationship
-NicheAnalysis.channel_id = Column(UUID(as_uuid=True), ForeignKey("channels.id"), nullable=True)

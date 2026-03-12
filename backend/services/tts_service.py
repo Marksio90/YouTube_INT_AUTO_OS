@@ -95,31 +95,10 @@ class TTSService:
 
         async with httpx.AsyncClient(timeout=120.0) as client:
             for i, chunk in enumerate(chunks):
-                response = await client.post(
-                    f"{ELEVENLABS_API_URL}/text-to-speech/{voice_id}",
-                    headers=self._headers(),
-                    json={
-                        "text": chunk,
-                        "model_id": model_id,
-                        "voice_settings": settings_payload,
-                    },
+                audio_bytes = await self._tts_chunk_with_backoff(
+                    client, voice_id, chunk, model_id, settings_payload
                 )
-
-                if response.status_code == 200:
-                    audio_chunks.append(response.content)
-                elif response.status_code == 422:
-                    raise ValueError(f"ElevenLabs validation error: {response.text}")
-                elif response.status_code == 429:
-                    # Rate limit — wait and retry
-                    await asyncio.sleep(60)
-                    response = await client.post(
-                        f"{ELEVENLABS_API_URL}/text-to-speech/{voice_id}",
-                        headers=self._headers(),
-                        json={"text": chunk, "model_id": model_id, "voice_settings": settings_payload},
-                    )
-                    audio_chunks.append(response.content)
-                else:
-                    raise Exception(f"ElevenLabs error {response.status_code}: {response.text}")
+                audio_chunks.append(audio_bytes)
 
                 if len(chunks) > 1:
                     await asyncio.sleep(0.5)  # Be nice to API
@@ -172,6 +151,35 @@ class TTSService:
                 data = response.json()
                 return data.get("character_limit", 0) - data.get("character_count", 0)
             return None
+
+    async def _tts_chunk_with_backoff(
+        self,
+        client: httpx.AsyncClient,
+        voice_id: str,
+        text: str,
+        model_id: str,
+        voice_settings: dict,
+        max_retries: int = 4,
+    ) -> bytes:
+        """POST to ElevenLabs TTS with exponential backoff on rate-limit (429)."""
+        payload = {"text": text, "model_id": model_id, "voice_settings": voice_settings}
+        for attempt in range(max_retries):
+            response = await client.post(
+                f"{ELEVENLABS_API_URL}/text-to-speech/{voice_id}",
+                headers=self._headers(),
+                json=payload,
+            )
+            if response.status_code == 200:
+                return response.content
+            elif response.status_code == 422:
+                raise ValueError(f"ElevenLabs validation error: {response.text}")
+            elif response.status_code == 429:
+                wait = min(2 ** attempt * 10, 120)  # 10s, 20s, 40s, 80s max
+                logger.warning("ElevenLabs rate limit — backing off", wait_seconds=wait, attempt=attempt + 1)
+                await asyncio.sleep(wait)
+            else:
+                raise Exception(f"ElevenLabs error {response.status_code}: {response.text}")
+        raise Exception(f"ElevenLabs rate limit persists after {max_retries} retries")
 
     @staticmethod
     def _split_text(text: str, max_chars: int = 4800) -> list[str]:

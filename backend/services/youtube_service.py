@@ -5,11 +5,13 @@ Handles: channel metrics, video analytics, search, publishing.
 Quota: 10,000 units/day default
 - Upload: 1,600 units → ~6 uploads/day
 - Search: 100 units per request
+- Channels/Videos read: 1 unit
 - Analytics read: 1 unit
 
 Rate limiting is handled automatically with exponential backoff.
 """
 import asyncio
+import re
 from datetime import datetime, timezone, date, timedelta
 from typing import Optional, List, Dict, Any
 import httpx
@@ -22,11 +24,22 @@ logger = structlog.get_logger(__name__)
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 YOUTUBE_ANALYTICS_BASE = "https://youtubeanalytics.googleapis.com/v2"
 
+# Quota costs per operation type (YouTube Data API v3)
+_QUOTA_COSTS = {
+    "search": 100,
+    "channels": 1,
+    "videos": 1,
+    "upload": 1600,
+    "analytics": 1,
+    "default": 1,
+}
+
 
 class YouTubeService:
     def __init__(self):
         self.api_key = settings.youtube_api_key
         self._quota_used_today = 0
+        self._quota_reset_date = date.today()
 
     # ============================================================
     # Channel Metrics
@@ -359,6 +372,7 @@ class YouTubeService:
         Get keyword suggestions via YouTube autocomplete.
         Not in official API — uses undocumented suggest endpoint.
         """
+        import json as _json
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
@@ -373,9 +387,16 @@ class YouTubeService:
                 )
                 if response.status_code == 200:
                     # Response format: [query, [[suggestion, 0, [], {}], ...]]
-                    import json
-                    data = json.loads(response.text.split("(", 1)[1].rstrip(")"))
-                    return [item[0] for item in data[1][:10]]
+                    raw = response.text.strip()
+                    # Validate expected JSONP-like format before parsing
+                    if not raw.startswith("(") and not raw.startswith("window."):
+                        # Try direct JSON parse (some endpoints return plain JSON)
+                        data = _json.loads(raw)
+                    else:
+                        inner = raw.split("(", 1)[-1].rstrip(")")
+                        data = _json.loads(inner)
+                    suggestions = data[1] if isinstance(data, list) and len(data) > 1 else []
+                    return [item[0] for item in suggestions[:10] if isinstance(item, list) and item]
             except Exception as e:
                 logger.warning("Keyword suggestions failed", error=str(e))
         return []
@@ -383,6 +404,25 @@ class YouTubeService:
     # ============================================================
     # Helpers
     # ============================================================
+
+    def _charge_quota(self, url: str) -> int:
+        """Determine quota cost from URL and increment counter. Resets at midnight."""
+        today = date.today()
+        if today != self._quota_reset_date:
+            self._quota_used_today = 0
+            self._quota_reset_date = today
+
+        # Derive operation type from URL path
+        for key in _QUOTA_COSTS:
+            if f"/{key}" in url:
+                cost = _QUOTA_COSTS[key]
+                break
+        else:
+            cost = _QUOTA_COSTS["default"]
+
+        self._quota_used_today += cost
+        logger.debug("YouTube quota charged", cost=cost, total_used=self._quota_used_today, url=url)
+        return cost
 
     async def _api_call(
         self,
@@ -392,10 +432,14 @@ class YouTubeService:
         headers: dict = None,
         retries: int = 3,
     ) -> Dict:
+        if self.quota_remaining <= 0:
+            raise Exception("YouTube API daily quota exhausted. Try again tomorrow.")
+
         for attempt in range(retries):
             try:
                 response = await client.get(url, params=params, headers=headers, timeout=30.0)
                 if response.status_code == 200:
+                    self._charge_quota(url)
                     return response.json()
                 elif response.status_code == 429:
                     wait = 2 ** attempt * 2
@@ -404,6 +448,7 @@ class YouTubeService:
                 elif response.status_code == 403:
                     error = response.json().get("error", {})
                     if "quotaExceeded" in str(error):
+                        self._quota_used_today = settings.youtube_daily_api_quota  # mark as exhausted
                         raise Exception("YouTube API daily quota exceeded (10,000 units)")
                     raise Exception(f"YouTube API forbidden: {error}")
                 else:
@@ -417,7 +462,6 @@ class YouTubeService:
     @staticmethod
     def _extract_video_id(url: str) -> Optional[str]:
         """Extract video ID from YouTube URL."""
-        import re
         patterns = [
             r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})",
             r"(?:embed/)([a-zA-Z0-9_-]{11})",
@@ -430,6 +474,10 @@ class YouTubeService:
 
     @property
     def quota_remaining(self) -> int:
+        today = date.today()
+        if today != self._quota_reset_date:
+            self._quota_used_today = 0
+            self._quota_reset_date = today
         return settings.youtube_daily_api_quota - self._quota_used_today
 
 

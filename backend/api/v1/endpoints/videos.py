@@ -70,7 +70,17 @@ async def update_video(
     if not video:
         raise HTTPException(status_code=404, detail="Video project not found")
 
-    for field, value in data.model_dump(exclude_none=True).items():
+    # Allowlist of fields that can be updated via this endpoint
+    ALLOWED_UPDATE_FIELDS = {"title", "stage", "target_keywords", "scheduled_for"}
+    updates = {
+        k: v for k, v in data.model_dump(exclude_none=True).items()
+        if k in ALLOWED_UPDATE_FIELDS
+    }
+
+    if "stage" in updates and updates["stage"] not in STAGE_ORDER:
+        raise HTTPException(status_code=400, detail=f"Invalid stage: {updates['stage']}")
+
+    for field, value in updates.items():
         setattr(video, field, value)
 
     await db.flush()

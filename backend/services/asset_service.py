@@ -20,8 +20,8 @@ from core.langfuse import create_trace
 
 logger = structlog.get_logger(__name__)
 
-PEXELS_API_KEY = settings.__dict__.get("pexels_api_key", "")
-PIXABAY_API_KEY = settings.__dict__.get("pixabay_api_key", "")
+PEXELS_API_KEY = settings.pexels_api_key
+PIXABAY_API_KEY = settings.pixabay_api_key
 
 
 class AssetService:
@@ -30,6 +30,13 @@ class AssetService:
             api_key=settings.openai_api_key,
             organization=settings.openai_org_id or None,
         )
+        # Limit concurrent external API calls to avoid rate limits
+        self._semaphore = asyncio.Semaphore(5)
+
+    async def _find_asset_for_scene_limited(self, i: int, scene: Dict, niche: str, style: str) -> Dict:
+        """Wrapper that enforces the concurrency semaphore."""
+        async with self._semaphore:
+            return await self._find_asset_for_scene(i, scene, niche, style)
 
     async def find_assets_for_storyboard(
         self, storyboard: List[Dict], niche: str = "", style: str = "professional"
@@ -37,10 +44,11 @@ class AssetService:
         """
         For each scene in storyboard, find/generate the best asset.
         Returns list of {scene_index, url, type, source, query, cost}.
+        Max 5 concurrent external API calls to avoid rate limits.
         """
         assets = []
         tasks = [
-            self._find_asset_for_scene(i, scene, niche, style)
+            self._find_asset_for_scene_limited(i, scene, niche, style)
             for i, scene in enumerate(storyboard)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -65,15 +73,20 @@ class AssetService:
             return await self.generate_image_dalle(query, scene_index)
         elif scene_type == "stock_video":
             # Prefer AI-generated video (Kling/Runway) over stock footage
-            if video_generation_service.any_available:
-                duration = min(int(scene.get("duration_seconds", 5)), 10)
-                result = await video_generation_service.generate_video(
-                    prompt=query,
-                    scene_index=scene_index,
-                    duration_seconds=duration,
-                )
-                if result.get("url"):
-                    return result
+            # Late import to avoid circular dependency at module load time
+            try:
+                from services.video_generation_service import video_generation_service
+                if video_generation_service.any_available:
+                    duration = min(int(scene.get("duration_seconds", 5)), 10)
+                    result = await video_generation_service.generate_video(
+                        prompt=query,
+                        scene_index=scene_index,
+                        duration_seconds=duration,
+                    )
+                    if result.get("url"):
+                        return result
+            except ImportError:
+                pass
             # Fallback to Pexels stock video
             return await self.search_pexels_video(query, scene_index)
         else:

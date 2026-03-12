@@ -24,6 +24,32 @@ interface AuthState {
   fetchMe: () => Promise<void>;
 }
 
+// Use sessionStorage instead of localStorage to reduce XSS token exposure.
+// Tokens are cleared when the browser tab/session closes.
+const sessionStorageAdapter = {
+  getItem: (name: string) => {
+    try {
+      return sessionStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      sessionStorage.setItem(name, value);
+    } catch {
+      // sessionStorage may be unavailable in some contexts (SSR)
+    }
+  },
+  removeItem: (name: string) => {
+    try {
+      sessionStorage.removeItem(name);
+    } catch {
+      // ignore
+    }
+  },
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -37,7 +63,6 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const data = await authApi.login(email, password);
-          localStorage.setItem("auth_token", data.access_token);
           set({
             accessToken: data.access_token,
             refreshToken: data.refresh_token,
@@ -53,7 +78,6 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const data = await authApi.register(email, password, fullName);
-          localStorage.setItem("auth_token", data.access_token);
           set({
             accessToken: data.access_token,
             refreshToken: data.refresh_token,
@@ -66,7 +90,6 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        localStorage.removeItem("auth_token");
         set({
           user: null,
           accessToken: null,
@@ -80,7 +103,6 @@ export const useAuthStore = create<AuthState>()(
         if (!refreshToken) return;
         try {
           const data = await authApi.refresh(refreshToken);
-          localStorage.setItem("auth_token", data.access_token);
           set({
             accessToken: data.access_token,
             refreshToken: data.refresh_token,
@@ -101,6 +123,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "auth-storage",
+      storage: sessionStorageAdapter,
       partialize: (state) => ({
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,

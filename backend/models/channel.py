@@ -48,6 +48,7 @@ class Channel(Base, UUIDMixin, TimestampMixin):
     # Relationships
     videos = relationship("VideoProject", back_populates="channel", lazy="dynamic")
     experiments = relationship("Experiment", back_populates="channel", lazy="dynamic")
+    niche_analyses = relationship("NicheAnalysis", back_populates="channel", lazy="dynamic")
 
     def __repr__(self):
         return f"<Channel {self.name} ({self.slug})>"
