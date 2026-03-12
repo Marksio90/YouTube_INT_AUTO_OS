@@ -59,3 +59,48 @@ export function scoreColor(value: number, max: number = 100): string {
   if (pct >= 0.6) return "text-yellow-500";
   return "text-red-500";
 }
+
+/** Text color class for a 0-100 score */
+export function getScoreColor(score: number): string {
+  if (score >= 80) return "text-green-500";
+  if (score >= 60) return "text-yellow-500";
+  return "text-red-500";
+}
+
+/** Background + border color class for a 0-100 score badge */
+export function getScoreBg(score: number): string {
+  if (score >= 80) return "bg-green-500/10 border-green-500/30 text-green-400";
+  if (score >= 60) return "bg-yellow-500/10 border-yellow-500/30 text-yellow-400";
+  return "bg-red-500/10 border-red-500/30 text-red-400";
+}
+
+/** Format a number as USD currency: 1234.5 → "$1,234.50" */
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(amount);
+}
+
+/** Human-readable labels for each pipeline stage */
+export const PIPELINE_STAGE_LABELS: Record<string, string> = {
+  idea: "Idea",
+  script: "Script",
+  voice: "Voice",
+  video: "Video",
+  thumbnail: "Thumbnail",
+  seo: "SEO",
+  review: "Review",
+  scheduled: "Scheduled",
+  published: "Published",
+};
+
+/** Tailwind color classes for each pipeline stage */
+export const PIPELINE_STAGE_COLORS: Record<string, string> = {
+  idea: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  script: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  voice: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  video: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  thumbnail: "bg-pink-500/10 text-pink-400 border-pink-500/20",
+  seo: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  review: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  scheduled: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  published: "bg-green-500/10 text-green-400 border-green-500/20",
+};

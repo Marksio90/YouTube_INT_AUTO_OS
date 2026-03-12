@@ -82,6 +82,9 @@ export const LAYER_COLORS: Record<number, { bg: string; text: string; border: st
   5: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20" },
 };
 
+/** Alias for AGENT_REGISTRY — used by dashboard and other components */
+export const AGENTS = AGENT_REGISTRY;
+
 // ============================================================
 // Quality Gate Thresholds
 // ============================================================
