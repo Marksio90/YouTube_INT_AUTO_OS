@@ -1,5 +1,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from typing import List
+import secrets
+
+
+_DEV_SECRET_KEY = "dev-secret-key-change-in-production"
 
 
 class Settings(BaseSettings):
@@ -14,9 +19,23 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_name: str = "YouTube Intelligence & Automation OS"
     app_version: str = "1.0.0"
-    secret_key: str = "dev-secret-key-change-in-production"
+    secret_key: str = _DEV_SECRET_KEY
     allowed_origins: List[str] = ["http://localhost:3000"]
-    debug: bool = True
+    debug: bool = False
+
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        if v == _DEV_SECRET_KEY:
+            import os
+            if os.environ.get("APP_ENV", "development") == "production":
+                raise ValueError(
+                    "SECRET_KEY must be set to a secure random value in production. "
+                    f"Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+        if len(v) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters long")
+        return v
 
     # Database
     database_url: str = "postgresql+asyncpg://ytautos:password@localhost:5432/ytautos_db"
@@ -59,6 +78,10 @@ class Settings(BaseSettings):
     # Video Generation
     kling_api_key: str = ""
     runway_api_key: str = ""
+
+    # Stock Asset APIs
+    pexels_api_key: str = ""
+    pixabay_api_key: str = ""
 
     # Quality Gate Thresholds
     min_niche_score: int = 70

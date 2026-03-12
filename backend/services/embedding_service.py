@@ -31,6 +31,16 @@ class EmbeddingService:
         self.model = settings.openai_embedding_model  # text-embedding-3-large
         self.dimensions = 1536
 
+    def _to_pgvector_str(self, embedding: List[float]) -> str:
+        """Convert float list to pgvector string. Validates all values are finite floats."""
+        import math
+        sanitized = []
+        for v in embedding:
+            if not isinstance(v, (int, float)) or not math.isfinite(v):
+                raise ValueError(f"Invalid embedding value: {v!r}")
+            sanitized.append(float(v))
+        return "[" + ",".join(f"{v:.8f}" for v in sanitized) + "]"
+
     async def embed_text(self, text: str) -> List[float]:
         """Generate embedding vector for text. Returns 1536-dim list."""
         if not text or not text.strip():
@@ -47,19 +57,19 @@ class EmbeddingService:
             return response.data[0].embedding
         except Exception as e:
             logger.error("Embedding generation failed", error=str(e))
-            return [0.0] * self.dimensions
+            raise RuntimeError(f"Embedding generation failed: {e}") from e
 
     async def embed_script(self, script_text: str, script_id: str) -> bool:
         """Embed script and store in DB."""
         from sqlalchemy import text
         from uuid import UUID
 
-        embedding = await self.embed_text(script_text)
-        if not any(embedding):
+        try:
+            embedding = await self.embed_text(script_text)
+            vector_str = self._to_pgvector_str(embedding)
+        except Exception as e:
+            logger.error("Failed to generate/validate embedding for script", script_id=script_id, error=str(e))
             return False
-
-        # Convert to PostgreSQL vector format: [0.1, 0.2, ...]
-        vector_str = "[" + ",".join(str(v) for v in embedding) + "]"
 
         async with AsyncSessionLocal() as db:
             await db.execute(
@@ -76,11 +86,12 @@ class EmbeddingService:
         from sqlalchemy import text
         from uuid import UUID
 
-        embedding = await self.embed_text(combined_text)
-        if not any(embedding):
+        try:
+            embedding = await self.embed_text(combined_text)
+            vector_str = self._to_pgvector_str(embedding)
+        except Exception as e:
+            logger.error("Failed to generate/validate embedding for video", video_id=video_id, error=str(e))
             return False
-
-        vector_str = "[" + ",".join(str(v) for v in embedding) + "]"
 
         async with AsyncSessionLocal() as db:
             await db.execute(
@@ -113,11 +124,12 @@ class EmbeddingService:
         if threshold is None:
             threshold = settings.max_similarity_cosine
 
-        query_embedding = await self.embed_text(script_text)
-        if not any(query_embedding):
+        try:
+            query_embedding = await self.embed_text(script_text)
+            vector_str = self._to_pgvector_str(query_embedding)
+        except Exception as e:
+            logger.error("Failed to generate query embedding", error=str(e))
             return []
-
-        vector_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
 
         exclude_clause = ""
         params: dict = {"vec": vector_str, "channel_id": UUID(channel_id), "top_k": top_k}
@@ -161,10 +173,16 @@ class EmbeddingService:
         self,
         channel_id: str,
         threshold: float = None,
+        max_videos: int = 200,
     ) -> List[Dict]:
         """
-        Find all pairs of videos in a channel with cosine similarity > threshold.
+        Find pairs of videos in a channel with cosine similarity > threshold.
         Used for weekly compliance scan — detect template farm patterns.
+
+        Uses a two-pass approach to avoid O(n²) CROSS JOIN on large channels:
+        1. Fetch all embedded videos for the channel (up to max_videos)
+        2. For each video, use pgvector <=> operator to find its nearest neighbors
+        This results in O(n * k) queries instead of O(n²) rows in memory.
         """
         from sqlalchemy import text
         from uuid import UUID
@@ -172,73 +190,117 @@ class EmbeddingService:
         if threshold is None:
             threshold = settings.max_similarity_cosine
 
+        if not (0.0 <= threshold <= 1.0):
+            raise ValueError(f"threshold must be between 0.0 and 1.0, got {threshold}")
+
         async with AsyncSessionLocal() as db:
+            # Step 1: Fetch all videos with embeddings for this channel
             result = await db.execute(
                 text("""
-                    SELECT
-                        a.id as video_a_id,
-                        a.title as video_a_title,
-                        b.id as video_b_id,
-                        b.title as video_b_title,
-                        1 - (a.content_embedding_vec <=> b.content_embedding_vec) AS similarity
-                    FROM video_projects a
-                    CROSS JOIN video_projects b
-                    WHERE a.channel_id = :channel_id
-                      AND b.channel_id = :channel_id
-                      AND a.id < b.id
-                      AND a.content_embedding_vec IS NOT NULL
-                      AND b.content_embedding_vec IS NOT NULL
-                      AND 1 - (a.content_embedding_vec <=> b.content_embedding_vec) >= :threshold
-                    ORDER BY similarity DESC
-                    LIMIT 20
+                    SELECT id, title, content_embedding_vec
+                    FROM video_projects
+                    WHERE channel_id = :channel_id
+                      AND content_embedding_vec IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT :max_videos
                 """),
-                {"channel_id": UUID(channel_id), "threshold": threshold},
+                {"channel_id": UUID(channel_id), "max_videos": max_videos},
             )
-            rows = result.fetchall()
+            videos = result.fetchall()
 
-        return [
-            {
-                "video_a_id": str(row.video_a_id),
-                "video_a_title": row.video_a_title,
-                "video_b_id": str(row.video_b_id),
-                "video_b_title": row.video_b_title,
-                "similarity": round(float(row.similarity), 4),
-            }
-            for row in rows
-        ]
+        if len(videos) < 2:
+            return []
 
-    async def rebuild_channel_embeddings(self, channel_id: str) -> int:
+        # Step 2: For each video, find similar ones using indexed <=> operator
+        seen_pairs: set = set()
+        similar_pairs: List[Dict] = []
+
+        async with AsyncSessionLocal() as db:
+            for video in videos:
+                result = await db.execute(
+                    text("""
+                        SELECT
+                            id,
+                            title,
+                            1 - (content_embedding_vec <=> :vec::vector) AS similarity
+                        FROM video_projects
+                        WHERE channel_id = :channel_id
+                          AND id != :exclude_id
+                          AND content_embedding_vec IS NOT NULL
+                          AND 1 - (content_embedding_vec <=> :vec::vector) >= :threshold
+                        ORDER BY content_embedding_vec <=> :vec::vector
+                        LIMIT 5
+                    """),
+                    {
+                        "vec": str(video.content_embedding_vec),
+                        "channel_id": UUID(channel_id),
+                        "exclude_id": video.id,
+                        "threshold": threshold,
+                    },
+                )
+                neighbors = result.fetchall()
+
+                for neighbor in neighbors:
+                    # Deduplicate pairs (a,b) == (b,a)
+                    pair_key = tuple(sorted([str(video.id), str(neighbor.id)]))
+                    if pair_key in seen_pairs:
+                        continue
+                    seen_pairs.add(pair_key)
+                    similar_pairs.append({
+                        "video_a_id": str(video.id),
+                        "video_a_title": video.title,
+                        "video_b_id": str(neighbor.id),
+                        "video_b_title": neighbor.title,
+                        "similarity": round(float(neighbor.similarity), 4),
+                    })
+
+        # Return top pairs by similarity
+        similar_pairs.sort(key=lambda x: x["similarity"], reverse=True)
+        return similar_pairs[:50]
+
+    async def rebuild_channel_embeddings(self, channel_id: str, batch_size: int = 50) -> int:
         """
         Batch-rebuild embeddings for all scripts in a channel that lack them.
-        Returns count of rebuilt embeddings.
+        Processes all scripts in batches to avoid memory issues on large channels.
+        Returns total count of rebuilt embeddings.
         """
         from sqlalchemy import text
         from uuid import UUID
 
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                text("""
-                    SELECT s.id, s.full_text
-                    FROM scripts s
-                    JOIN video_projects vp ON s.video_project_id = vp.id
-                    WHERE vp.channel_id = :channel_id
-                      AND s.content_embedding IS NULL
-                      AND s.full_text IS NOT NULL
-                    LIMIT 100
-                """),
-                {"channel_id": UUID(channel_id)},
-            )
-            scripts = result.fetchall()
-
         rebuilt = 0
-        for script in scripts:
-            if script.full_text:
-                success = await self.embed_script(script.full_text, str(script.id))
-                if success:
-                    rebuilt += 1
-                await asyncio.sleep(0.1)  # rate limiting
+        offset = 0
 
-        logger.info("Channel embeddings rebuilt", channel_id=channel_id, count=rebuilt)
+        while True:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    text("""
+                        SELECT s.id, s.full_text
+                        FROM scripts s
+                        JOIN video_projects vp ON s.video_project_id = vp.id
+                        WHERE vp.channel_id = :channel_id
+                          AND s.content_embedding IS NULL
+                          AND s.full_text IS NOT NULL
+                        ORDER BY s.created_at ASC
+                        LIMIT :batch_size OFFSET :offset
+                    """),
+                    {"channel_id": UUID(channel_id), "batch_size": batch_size, "offset": offset},
+                )
+                scripts = result.fetchall()
+
+            if not scripts:
+                break
+
+            for script in scripts:
+                if script.full_text:
+                    success = await self.embed_script(script.full_text, str(script.id))
+                    if success:
+                        rebuilt += 1
+                    await asyncio.sleep(0.1)  # rate limiting
+
+            offset += batch_size
+            logger.debug("Embedding batch done", channel_id=channel_id, offset=offset, rebuilt_so_far=rebuilt)
+
+        logger.info("Channel embeddings rebuilt", channel_id=channel_id, total=rebuilt)
         return rebuilt
 
     async def compute_originality_score(

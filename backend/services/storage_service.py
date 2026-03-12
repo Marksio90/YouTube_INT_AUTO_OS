@@ -46,7 +46,7 @@ class StorageService:
     ) -> str:
         """Upload bytes to R2. Returns public URL."""
         import asyncio
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         extra_args = {"ContentType": content_type}
         if public:
@@ -67,7 +67,7 @@ class StorageService:
     async def upload_file(self, local_path: str, key: str, content_type: str = "video/mp4") -> str:
         """Upload local file to R2. Returns public URL."""
         import asyncio
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         await loop.run_in_executor(
             None,
@@ -84,7 +84,7 @@ class StorageService:
     async def get_url_if_exists(self, key: str) -> Optional[str]:
         """Check if file exists. Returns URL or None."""
         import asyncio
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         try:
             await loop.run_in_executor(
@@ -100,7 +100,7 @@ class StorageService:
     async def delete(self, key: str) -> bool:
         """Delete file from R2."""
         import asyncio
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         try:
             await loop.run_in_executor(
@@ -108,13 +108,14 @@ class StorageService:
                 lambda: self.client.delete_object(Bucket=settings.r2_bucket_name, Key=key),
             )
             return True
-        except Exception:
+        except Exception as e:
+            logger.error("Failed to delete object from R2", key=key, error=str(e))
             return False
 
     async def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
         """Generate presigned URL for temporary access (uploads from browser)."""
         import asyncio
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         url = await loop.run_in_executor(
             None,

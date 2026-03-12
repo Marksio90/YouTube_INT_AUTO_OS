@@ -1,8 +1,8 @@
 """
 Auth endpoints — register, login, refresh, logout, me
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -16,6 +16,11 @@ from models.user import User, UserRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Import limiter from main app state (set via app.state.limiter in main.py)
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+_limiter = Limiter(key_func=get_remote_address)
+
 
 # ============================================================
 # Schemas
@@ -26,10 +31,30 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str | None = None
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if len(v) > 128:
+            raise ValueError("Password must not exceed 128 characters")
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = ""
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_length(cls, v: str) -> str:
+        if len(v) > 128:
+            raise ValueError("Password too long")
+        return v
 
 
 class TokenResponse(BaseModel):
@@ -57,7 +82,8 @@ class UserResponse(BaseModel):
 # ============================================================
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+@_limiter.limit("5/minute")
+async def register(request: Request, data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # Check existing
     result = await db.execute(select(User).where(User.email == data.email))
     if result.scalar_one_or_none():
@@ -80,7 +106,8 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+@_limiter.limit("10/minute")
+async def login(request: Request, data: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
 

@@ -10,6 +10,7 @@ Flow:
 """
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from urllib.parse import urlparse
 
 from services.youtube_oauth_service import youtube_oauth_service
 from core.config import settings
@@ -20,13 +21,29 @@ router = APIRouter(prefix="/youtube-oauth", tags=["YouTube OAuth"])
 _REDIRECT_URI_PATH = "/api/v1/youtube-oauth/callback"
 
 
+def _validate_base_url(base_url: str) -> str:
+    """Validate that base_url is in the allowed origins whitelist."""
+    normalized = base_url.rstrip("/")
+    allowed = [o.rstrip("/") for o in settings.allowed_origins]
+    if normalized not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"base_url '{base_url}' is not in the allowed origins list. "
+                   f"Configure ALLOWED_ORIGINS to include this URL.",
+        )
+    parsed = urlparse(normalized)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="base_url must use http or https scheme")
+    return normalized
+
+
 def _build_redirect_uri(request_base_url: str) -> str:
-    base = request_base_url.rstrip("/")
+    base = _validate_base_url(request_base_url)
     return f"{base}{_REDIRECT_URI_PATH}"
 
 
 @router.get("/{channel_id}/authorize")
-async def start_oauth(channel_id: str, base_url: str = Query(..., description="Base URL of this server, e.g. https://myapp.com")):
+async def start_oauth(channel_id: str, base_url: str = Query(..., description="Base URL of this server — must be in ALLOWED_ORIGINS")):
     """
     Generate Google OAuth authorization URL for a channel.
     Redirect the user to the returned URL to grant access.
@@ -48,7 +65,7 @@ async def start_oauth(channel_id: str, base_url: str = Query(..., description="B
 async def oauth_callback(
     code: str = Query(...),
     state: str = Query(..., description="channel_id passed as state"),
-    base_url: str = Query(..., description="Base URL used when starting OAuth"),
+    base_url: str = Query(..., description="Base URL used when starting OAuth — must be in ALLOWED_ORIGINS"),
 ):
     """
     Google redirects here after user grants/denies access.
