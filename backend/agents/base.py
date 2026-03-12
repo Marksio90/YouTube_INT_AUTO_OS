@@ -15,6 +15,7 @@ import operator
 
 from core.config import settings
 from core.langfuse import get_langfuse_callbacks
+from core.model_router import model_router, TaskComplexity
 
 logger = structlog.get_logger(__name__)
 
@@ -39,7 +40,7 @@ class AgentState(TypedDict):
 
 
 # ============================================================
-# LLM Factory
+# LLM Factory (legacy — prefer BaseAgent.get_routed_llm for new code)
 # ============================================================
 
 def get_premium_llm(callbacks: list = None) -> ChatOpenAI:
@@ -84,6 +85,11 @@ class BaseAgent(ABC):
     """
     Base class for all 23 YouTube Automation OS agents.
     Each agent is a LangGraph state machine with quality gates.
+
+    Features:
+    - MemorySaver checkpointing for fault-tolerant execution
+    - model_router integration for cost-optimized LLM selection
+    - Langfuse observability callbacks
     """
 
     agent_id: str = "base_agent"
@@ -101,6 +107,19 @@ class BaseAgent(ABC):
         self.logger = structlog.get_logger(self.__class__.__name__)
         self._graph = None
         self._langfuse_callbacks = langfuse_callbacks
+        self._checkpointer = MemorySaver()
+
+    def get_routed_llm(self, task_type: str, context_length: int = 0):
+        """Get LLM via model_router for cost-optimized model selection.
+
+        Prefer this over self.llm_premium / self.llm_fast for automatic
+        NANO/MICRO/MACRO/EXPERT tier routing.
+        """
+        return model_router.get_llm(
+            task_type=task_type,
+            context_length=context_length,
+            callbacks=self._langfuse_callbacks,
+        )
 
     def get_graph(self) -> StateGraph:
         if not self._graph:

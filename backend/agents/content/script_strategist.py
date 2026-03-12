@@ -19,6 +19,7 @@ import time
 
 from agents.base import BaseAgent, AgentState
 from core.config import settings
+from core.model_router import model_router
 
 
 SCRIPT_STRATEGY_PROMPT = ChatPromptTemplate.from_messages([
@@ -99,11 +100,13 @@ class ScriptStrategistAgent(BaseAgent):
             {"retry": "generate_script", "done": END},
         )
 
-        return workflow.compile()
+        return workflow.compile(checkpointer=self._checkpointer)
 
     async def _generate_script(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = SCRIPT_STRATEGY_PROMPT | self.llm_premium
+        # MACRO tier — complex multi-section script generation
+        script_llm = self.get_routed_llm("generate_script", context_length=2000)
+        chain = SCRIPT_STRATEGY_PROMPT | script_llm
 
         response = await chain.ainvoke({
             "topic": input_data.get("topic", ""),
@@ -147,7 +150,9 @@ Scenariusz (pierwsze 500 znakow): {full_text[:500]}
 
 Odpowiedz TYLKO: {{"score": X.X, "issues": ["problem1", "problem2"], "suggestions": ["sug1"]}}"""
 
-        response = await self.llm_fast.ainvoke([("human", naturalness_prompt)])
+        # MICRO tier — simple scoring task
+        scorer_llm = self.get_routed_llm("score_hook")
+        response = await scorer_llm.ainvoke([("human", naturalness_prompt)])
         try:
             result = json.loads(response.content.strip())
             score = result.get("score", 7.0)
@@ -189,7 +194,9 @@ Odpowiedz TYLKO: {{"score": X.X, "issues": ["problem1", "problem2"], "suggestion
         self._log_start(input_data)
         start = time.time()
         graph = self.get_graph()
-        final_state = await graph.ainvoke(self._initial_state(input_data))
+        run_id = f"{self.agent_id}-{time.time()}"
+        config = {"configurable": {"thread_id": run_id}}
+        final_state = await graph.ainvoke(self._initial_state(input_data, run_id=run_id), config)
         duration = time.time() - start
         self._log_complete(final_state["output_data"], duration)
         return {**final_state["output_data"], "agent_id": self.agent_id, "duration_seconds": round(duration, 2)}
