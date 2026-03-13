@@ -8,6 +8,7 @@ Quality Gate: SEO score >= 75/100.
 Data sources: YouTube Data API v3 keyword suggestions, trend analysis.
 """
 import json
+from utils.llm_cache import make_cache_key, get_cached_response, cache_response
 import time
 from typing import Any, Dict
 
@@ -116,19 +117,31 @@ class SEOIntelligenceAgent(BaseAgent):
     async def _generate_seo_package(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
         keyword_suggestions = state["output_data"].get("keyword_suggestions", [])
-        chain = SEO_ANALYSIS_PROMPT | self.get_routed_llm("seo_optimization")
 
-        response = await chain.ainvoke({
+        prompt_vars = {
             "title": input_data.get("title", ""),
             "script_excerpt": input_data.get("script_text", "")[:2000],
             "niche": input_data.get("niche", ""),
             "audience": input_data.get("target_audience", ""),
             "keyword_suggestions": ", ".join(keyword_suggestions[:20]),
             "competitor_titles": ", ".join(input_data.get("competitor_titles", [])[:5]),
-        })
+        }
+
+        # Check Redis cache before calling LLM — identical inputs produce identical SEO packages
+        llm = self.get_routed_llm("seo_optimization")
+        cache_prompt = f"seo_package:{json.dumps(prompt_vars, sort_keys=True)}"
+        cache_key = make_cache_key(cache_prompt, getattr(llm, "model_name", "seo_llm"))
+        cached_content = await get_cached_response(cache_key)
+
+        if cached_content:
+            content = cached_content
+        else:
+            chain = SEO_ANALYSIS_PROMPT | llm
+            response = await chain.ainvoke(prompt_vars)
+            content = response.content
+            await cache_response(cache_key, content, ttl=7200)  # 2h TTL for SEO packages
 
         try:
-            content = response.content
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
