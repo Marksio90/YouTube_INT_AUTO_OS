@@ -1,7 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
-from typing import List
+from typing import List, Any
 import secrets
+import json
 
 
 _DEV_SECRET_KEY = "dev-secret-key-change-in-production"
@@ -22,6 +23,18 @@ class Settings(BaseSettings):
     secret_key: str = _DEV_SECRET_KEY
     allowed_origins: List[str] = ["http://localhost:3000"]
     debug: bool = False
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return ["http://localhost:3000"]
+            if v.startswith("["):
+                return json.loads(v)
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
     @field_validator("secret_key")
     @classmethod
