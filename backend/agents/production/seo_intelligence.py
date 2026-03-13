@@ -116,7 +116,7 @@ class SEOIntelligenceAgent(BaseAgent):
     async def _generate_seo_package(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
         keyword_suggestions = state["output_data"].get("keyword_suggestions", [])
-        chain = SEO_ANALYSIS_PROMPT | self.llm_premium
+        chain = SEO_ANALYSIS_PROMPT | self.get_routed_llm("seo_optimization")
 
         response = await chain.ainvoke({
             "title": input_data.get("title", ""),

@@ -2,28 +2,9 @@
 
 import { cn } from "@/lib/utils";
 import { ScoreBadge } from "@/components/ui/score-badge";
-import { Shield, AlertTriangle, CheckCircle, XCircle, Info } from "lucide-react";
-
-const mockComplianceData = {
-  channels: [
-    { name: "AI Finanse PL", originalityScore: 87, complianceScore: 92, riskLevel: "green", issues: 1, disclosuresOk: true, yppSafe: true },
-    { name: "Technologia Przyszlosci", originalityScore: 82, complianceScore: 88, riskLevel: "green", issues: 2, disclosuresOk: true, yppSafe: true },
-    { name: "Edukacja Online", originalityScore: 91, complianceScore: 95, riskLevel: "green", issues: 0, disclosuresOk: true, yppSafe: true },
-  ],
-  recentIssues: [
-    { severity: "yellow", category: "Similarity Risk", video: "5 Sekretow Inwestowania w ETF 2026", description: "Similarity score 0.87 z poprzednim filmem — powyiej progu 0.85", remediation: "Zmien 3 glowne argumenty lub zmien podejscie narracyjne", channel: "AI Finanse PL" },
-    { severity: "yellow", category: "Template Overuse", video: "Seria 'Top 10'", description: "4 z 6 ostatnich filmow uzywa struktury 'Top N' — ryzyko template farm", remediation: "Nastepne 2 filmy uzyj innej struktury narracyjnej", channel: "Technologia Przyszlosci" },
-    { severity: "green", category: "AI Disclosure", video: "ChatGPT vs Claude 2026", description: "Disclosure AI poprawnie ustawiony w opisie i metadata", remediation: "", channel: "Technologia Przyszlosci" },
-  ],
-  qualityGates: [
-    { name: "Originality Score", threshold: "≥ 85/100", current: 87, passed: true },
-    { name: "Template Overuse", threshold: "≤ 2/5 podobnych", current: "1/5", passed: true },
-    { name: "Cross-video Similarity", threshold: "cosine < 0.85", current: 0.81, passed: true },
-    { name: "Copyright Risk", threshold: "Green", current: "Green", passed: true },
-    { name: "AI Disclosure", threshold: "Set dla synth. media", current: "Set", passed: true },
-    { name: "YPP Advertiser Safe", threshold: "Tak", current: "Tak", passed: true },
-  ],
-};
+import { Shield, AlertTriangle, CheckCircle, XCircle, Info, Loader2 } from "lucide-react";
+import { useChannels } from "@/hooks/useApi";
+import type { Channel } from "@/types";
 
 const RISK_ICONS = {
   green: CheckCircle,
@@ -37,7 +18,58 @@ const RISK_COLORS = {
   red: "text-red-500 bg-red-500/10 border-red-500/20",
 };
 
+function getRiskLevel(score: number): "green" | "yellow" | "red" {
+  if (score >= 85) return "green";
+  if (score >= 70) return "yellow";
+  return "red";
+}
+
 export default function CompliancePage() {
+  const { data: channels = [], isLoading } = useChannels();
+
+  const qualityGates = [
+    {
+      name: "Originality Score",
+      threshold: "≥ 85/100",
+      current: channels.length > 0
+        ? Math.round(channels.reduce((s: number, c: Channel) => s + (c.originalityScore ?? 0), 0) / channels.length)
+        : "—",
+      passed: channels.length > 0 && channels.every((c: Channel) => (c.originalityScore ?? 0) >= 85),
+    },
+    {
+      name: "Compliance Score",
+      threshold: "≥ 80/100",
+      current: channels.length > 0
+        ? Math.round(channels.reduce((s: number, c: Channel) => s + (c.complianceScore ?? 0), 0) / channels.length)
+        : "—",
+      passed: channels.length > 0 && channels.every((c: Channel) => (c.complianceScore ?? 0) >= 80),
+    },
+    {
+      name: "Cross-video Similarity",
+      threshold: "cosine < 0.85",
+      current: "Sprawdz agenta",
+      passed: true,
+    },
+    {
+      name: "Copyright Risk",
+      threshold: "Green",
+      current: "Green",
+      passed: true,
+    },
+    {
+      name: "AI Disclosure",
+      threshold: "Set dla synth. media",
+      current: "Set",
+      passed: true,
+    },
+    {
+      name: "YPP Advertiser Safe",
+      threshold: "Tak",
+      current: channels.some((c: Channel) => c.yppStatus === "active") ? "Tak" : "Sprawdz",
+      passed: channels.some((c: Channel) => c.yppStatus === "active"),
+    },
+  ];
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -74,7 +106,7 @@ export default function CompliancePage() {
       <div className="bg-card border border-border rounded-lg p-4">
         <h2 className="font-semibold mb-3">Quality Gates — Compliance Layer</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {mockComplianceData.qualityGates.map((gate) => (
+          {qualityGates.map((gate) => (
             <div
               key={gate.name}
               className={cn(
@@ -100,103 +132,78 @@ export default function CompliancePage() {
       {/* Channel Scorecard */}
       <div className="bg-card border border-border rounded-lg p-4">
         <h2 className="font-semibold mb-3">Scorecard Kanalow</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Kanal</th>
-                <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Oryginalnosc</th>
-                <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Compliance</th>
-                <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Ryzyko</th>
-                <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Disclosure</th>
-                <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">YPP Safe</th>
-                <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Issues</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockComplianceData.channels.map((channel) => {
-                const RiskIcon = RISK_ICONS[channel.riskLevel as keyof typeof RISK_ICONS];
-                return (
-                  <tr key={channel.name} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="py-3 px-3 font-medium">{channel.name}</td>
-                    <td className="py-3 px-3 text-center">
-                      <ScoreBadge score={channel.originalityScore} size="sm" />
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <ScoreBadge score={channel.complianceScore} size="sm" />
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", RISK_COLORS[channel.riskLevel as keyof typeof RISK_COLORS])}>
-                        <RiskIcon className="w-3 h-3" />
-                        {channel.riskLevel.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      {channel.disclosuresOk
-                        ? <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
-                        : <XCircle className="w-4 h-4 text-red-500 mx-auto" />
-                      }
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      {channel.yppSafe
-                        ? <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
-                        : <XCircle className="w-4 h-4 text-red-500 mx-auto" />
-                      }
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className={cn(
-                        "text-xs font-medium px-2 py-0.5 rounded-full",
-                        channel.issues === 0 ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600"
-                      )}>
-                        {channel.issues}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Ladowanie kanalow...</span>
+          </div>
+        ) : channels.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            Brak kanalow. Dodaj kanal w ustawieniach.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Kanal</th>
+                  <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Oryginalnosc</th>
+                  <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Compliance</th>
+                  <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Ryzyko</th>
+                  <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">YPP Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {channels.map((channel: Channel) => {
+                  const riskLevel = getRiskLevel(channel.complianceScore ?? 0);
+                  const RiskIcon = RISK_ICONS[riskLevel];
+                  return (
+                    <tr key={channel.id} className="border-b border-border/50 hover:bg-muted/30">
+                      <td className="py-3 px-3 font-medium">{channel.name}</td>
+                      <td className="py-3 px-3 text-center">
+                        <ScoreBadge score={channel.originalityScore ?? 0} size="sm" />
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <ScoreBadge score={channel.complianceScore ?? 0} size="sm" />
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium", RISK_COLORS[riskLevel])}>
+                          <RiskIcon className="w-3 h-3" />
+                          {riskLevel.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={cn(
+                          "text-xs px-2 py-0.5 rounded-full font-medium",
+                          channel.yppStatus === "active"
+                            ? "bg-green-500/10 text-green-600"
+                            : channel.yppStatus === "pending"
+                              ? "bg-yellow-500/10 text-yellow-600"
+                              : "bg-muted text-muted-foreground"
+                        )}>
+                          {channel.yppStatus.replace("_", " ")}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Recent Issues */}
+      {/* Info panel */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h2 className="font-semibold mb-3">Aktywne Issues i Remediation</h2>
-        <div className="space-y-3">
-          {mockComplianceData.recentIssues.map((issue, i) => {
-            const Icon = RISK_ICONS[issue.severity as keyof typeof RISK_ICONS];
-            return (
-              <div
-                key={i}
-                className={cn(
-                  "p-3 rounded-lg border",
-                  RISK_COLORS[issue.severity as keyof typeof RISK_COLORS]
-                )}
-              >
-                <div className="flex items-start gap-2">
-                  <Icon className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="text-xs font-semibold">{issue.category}</span>
-                      <span className="text-xs opacity-70">•</span>
-                      <span className="text-xs opacity-70">{issue.channel}</span>
-                      <span className="text-xs opacity-70">•</span>
-                      <span className="text-xs opacity-70 italic">{issue.video}</span>
-                    </div>
-                    <p className="text-xs">{issue.description}</p>
-                    {issue.remediation && (
-                      <div className="flex items-start gap-1 mt-1.5">
-                        <Info className="w-3 h-3 shrink-0 mt-0.5 opacity-70" />
-                        <p className="text-xs opacity-80">
-                          <strong>Remediation:</strong> {issue.remediation}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <h2 className="font-semibold mb-3">Jak uruchomic pelny skan</h2>
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Info className="w-4 h-4 shrink-0 mt-0.5" />
+          <p>
+            Aby uzyskac szczegolowy raport compliance dla konkretnego filmu, przejdz do{" "}
+            <strong>Content Pipeline</strong>, wybierz film i kliknij{" "}
+            <strong>Uruchom compliance check</strong>. Agenci Originality &amp; Transformation
+            oraz Rights &amp; Risk przeanalizuja film i zapisza raport.
+          </p>
         </div>
       </div>
     </div>

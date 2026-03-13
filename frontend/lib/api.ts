@@ -198,3 +198,20 @@ export const dashboardApi = {
 };
 
 export default api;
+
+// ============================================================
+// Niches API
+// ============================================================
+
+export const nichesApi = {
+  list: async (channelId?: string): Promise<NicheScore[]> => {
+    const params: Record<string, string> = {};
+    if (channelId) params.channel_id = channelId;
+    const res = await api.get("/api/v1/niches", { params });
+    return res.data;
+  },
+  analyze: async (data: { niche_name: string; category?: string; channel_id?: string }) => {
+    const res = await api.post("/api/v1/niches/analyze", data);
+    return res.data;
+  },
+};

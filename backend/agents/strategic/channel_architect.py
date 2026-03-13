@@ -105,7 +105,7 @@ class ChannelArchitectAgent(BaseAgent):
 
     async def _design_channel(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = CHANNEL_ARCHITECT_PROMPT | self.llm_premium
+        chain = CHANNEL_ARCHITECT_PROMPT | self.get_routed_llm("channel_strategy")
 
         response = await chain.ainvoke({
             "niche_name": input_data.get("niche_name", ""),

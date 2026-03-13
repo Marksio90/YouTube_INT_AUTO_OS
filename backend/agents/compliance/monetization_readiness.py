@@ -143,7 +143,7 @@ class MonetizationReadinessAgent(BaseAgent):
     async def _analyze_monetization(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
         channel_stats = state["output_data"].get("channel_stats", {})
-        chain = MONETIZATION_PROMPT | self.llm_premium
+        chain = MONETIZATION_PROMPT | self.get_routed_llm("check_ypp_policy")
 
         response = await chain.ainvoke({
             "channel_stats": json.dumps(channel_stats),

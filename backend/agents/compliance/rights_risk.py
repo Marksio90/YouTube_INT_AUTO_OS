@@ -104,7 +104,7 @@ class RightsRiskAgent(BaseAgent):
 
     async def _scan_content(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = RIGHTS_RISK_PROMPT | self.llm_premium
+        chain = RIGHTS_RISK_PROMPT | self.get_routed_llm("deep_originality_check")
 
         response = await chain.ainvoke({
             "title": input_data.get("title", ""),

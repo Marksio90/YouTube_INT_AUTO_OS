@@ -139,7 +139,7 @@ class WatchTimeForensicsAgent(BaseAgent):
     async def _run_forensics(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
         analytics = state["output_data"].get("analytics", {})
-        chain = FORENSICS_PROMPT | self.llm_premium
+        chain = FORENSICS_PROMPT | self.get_routed_llm("score_retention")
 
         response = await chain.ainvoke({
             "title": input_data.get("title", ""),

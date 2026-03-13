@@ -50,8 +50,10 @@ class VideoAssemblyAgent(BaseAgent):
 
         if not input_data.get("voice_track_url"):
             missing.append("voice_track_url")
-        if not input_data.get("scenes") and not input_data.get("asset_manifest"):
-            missing.append("scenes or asset_manifest")
+        if not input_data.get("storyboard") and not input_data.get("scenes"):
+            missing.append("storyboard")
+        if not input_data.get("assets") and not input_data.get("asset_manifest"):
+            missing.append("assets")
 
         assets_valid = len(missing) == 0
         state["output_data"]["assets_valid"] = assets_valid
@@ -78,12 +80,12 @@ class VideoAssemblyAgent(BaseAgent):
 
         try:
             result = await video_assembly_service.assemble(
-                project_id=video_project_id,
                 voice_track_url=input_data["voice_track_url"],
-                scenes=input_data.get("scenes", []),
-                asset_manifest=input_data.get("asset_manifest", {}),
-                background_music_url=input_data.get("background_music_url"),
-                captions_path=input_data.get("captions_path"),
+                storyboard=input_data.get("storyboard") or input_data.get("scenes", []),
+                assets=input_data.get("assets") or list(input_data.get("asset_manifest", {}).values()),
+                music_url=input_data.get("music_url") or input_data.get("background_music_url"),
+                captions_srt=input_data.get("captions_srt") or input_data.get("captions_path"),
+                video_project_id=video_project_id,
                 profile=profile,
             )
             state["output_data"]["assembly_result"] = result
@@ -148,7 +150,7 @@ class VideoAssemblyAgent(BaseAgent):
             try:
                 object_key = f"videos/{video_project_id}/final.mp4"
                 video_url = await storage_service.upload_file(
-                    local_path=output_path, object_key=object_key
+                    local_path=output_path, key=object_key
                 )
             except Exception as e:
                 self.logger.warning("R2 upload failed", error=str(e))

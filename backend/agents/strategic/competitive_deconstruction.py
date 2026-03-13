@@ -71,7 +71,7 @@ class CompetitiveDeconstructionAgent(BaseAgent):
 
     async def _analyze_competitors(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = COMPETITIVE_ANALYSIS_PROMPT | self.llm_premium
+        chain = COMPETITIVE_ANALYSIS_PROMPT | self.get_routed_llm("competitive_deconstruction")
 
         response = await chain.ainvoke({
             "niche_name": input_data.get("niche_name", ""),

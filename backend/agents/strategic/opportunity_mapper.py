@@ -70,7 +70,7 @@ class OpportunityMapperAgent(BaseAgent):
 
     async def _map_opportunities(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = OPPORTUNITY_MAP_PROMPT | self.llm_premium
+        chain = OPPORTUNITY_MAP_PROMPT | self.get_routed_llm("opportunity_mapping")
 
         response = await chain.ainvoke({
             "niche_name": input_data.get("niche_name", ""),

@@ -99,7 +99,7 @@ class CaptionAgent(BaseAgent):
 
     async def _generate_captions(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = CAPTION_GENERATION_PROMPT | self.llm_premium
+        chain = CAPTION_GENERATION_PROMPT | self.get_routed_llm("score_hook")
 
         script_text = input_data.get("script_text", "")
         word_count = len(script_text.split())
