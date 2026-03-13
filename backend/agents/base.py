@@ -6,8 +6,6 @@ from typing import Any, Dict, Optional, TypedDict, Annotated
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 import structlog
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
@@ -40,44 +38,6 @@ class AgentState(TypedDict):
 
 
 # ============================================================
-# LLM Factory (legacy — prefer BaseAgent.get_routed_llm for new code)
-# ============================================================
-
-def get_premium_llm(callbacks: list = None) -> ChatOpenAI:
-    """GPT-4o for complex analysis and generation."""
-    return ChatOpenAI(
-        model=settings.openai_model_premium,
-        api_key=settings.openai_api_key,
-        openai_organization=settings.openai_org_id or None,
-        temperature=0.7,
-        max_retries=3,
-        callbacks=callbacks or [],
-    )
-
-
-def get_fast_llm(callbacks: list = None) -> ChatOpenAI:
-    """GPT-4o-mini for fast drafts and scoring."""
-    return ChatOpenAI(
-        model=settings.openai_model_fast,
-        api_key=settings.openai_api_key,
-        openai_organization=settings.openai_org_id or None,
-        temperature=0.3,
-        max_retries=3,
-        callbacks=callbacks or [],
-    )
-
-
-def get_claude_llm() -> ChatAnthropic:
-    """Claude for complex reasoning and analysis."""
-    return ChatAnthropic(
-        model=settings.anthropic_model,
-        api_key=settings.anthropic_api_key,
-        temperature=0.7,
-        max_retries=3,
-    )
-
-
-# ============================================================
 # Base Agent
 # ============================================================
 
@@ -102,12 +62,18 @@ class BaseAgent(ABC):
             trace_name=self.agent_id,
             tags=[f"layer_{self.layer}", "agent"],
         )
-        self.llm_premium = get_premium_llm(callbacks=langfuse_callbacks)
-        self.llm_fast = get_fast_llm(callbacks=langfuse_callbacks)
+        self._langfuse_callbacks = langfuse_callbacks
         self.logger = structlog.get_logger(self.__class__.__name__)
         self._graph = None
-        self._langfuse_callbacks = langfuse_callbacks
         self._checkpointer = MemorySaver()
+
+        # Convenience LLM instances — backed by model_router for cost optimization
+        self.llm_premium = model_router.get_llm(
+            "generate_script", callbacks=langfuse_callbacks
+        )
+        self.llm_fast = model_router.get_llm(
+            "score_hook", callbacks=langfuse_callbacks
+        )
 
     def get_routed_llm(self, task_type: str, context_length: int = 0):
         """Get LLM via model_router for cost-optimized model selection.

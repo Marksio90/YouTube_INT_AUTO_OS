@@ -96,7 +96,7 @@ class EmbeddingService:
         async with AsyncSessionLocal() as db:
             await db.execute(
                 text(
-                    "UPDATE video_projects SET content_embedding_vec = :vec::vector WHERE id = :id"
+                    "UPDATE video_projects SET content_embedding = :vec::vector WHERE id = :id"
                 ),
                 {"vec": vector_str, "id": UUID(video_id)},
             )
@@ -197,10 +197,10 @@ class EmbeddingService:
             # Step 1: Fetch all videos with embeddings for this channel
             result = await db.execute(
                 text("""
-                    SELECT id, title, content_embedding_vec
+                    SELECT id, title, content_embedding
                     FROM video_projects
                     WHERE channel_id = :channel_id
-                      AND content_embedding_vec IS NOT NULL
+                      AND content_embedding IS NOT NULL
                     ORDER BY created_at DESC
                     LIMIT :max_videos
                 """),
@@ -222,17 +222,17 @@ class EmbeddingService:
                         SELECT
                             id,
                             title,
-                            1 - (content_embedding_vec <=> :vec::vector) AS similarity
+                            1 - (content_embedding <=> :vec::vector) AS similarity
                         FROM video_projects
                         WHERE channel_id = :channel_id
                           AND id != :exclude_id
-                          AND content_embedding_vec IS NOT NULL
-                          AND 1 - (content_embedding_vec <=> :vec::vector) >= :threshold
-                        ORDER BY content_embedding_vec <=> :vec::vector
+                          AND content_embedding IS NOT NULL
+                          AND 1 - (content_embedding <=> :vec::vector) >= :threshold
+                        ORDER BY content_embedding <=> :vec::vector
                         LIMIT 5
                     """),
                     {
-                        "vec": str(video.content_embedding_vec),
+                        "vec": str(video.content_embedding),
                         "channel_id": UUID(channel_id),
                         "exclude_id": video.id,
                         "threshold": threshold,

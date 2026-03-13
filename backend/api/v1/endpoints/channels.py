@@ -6,6 +6,8 @@ import uuid
 import re
 
 from core.database import get_db
+from core.auth import get_current_user, require_creator
+from models.user import User
 from models.channel import Channel
 from schemas.channel import ChannelCreate, ChannelUpdate, ChannelResponse, ChannelKPIResponse
 
@@ -23,6 +25,7 @@ def slugify(text: str) -> str:
 async def list_channels(
     is_active: Optional[bool] = Query(None),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = select(Channel)
     if is_active is not None:
@@ -36,6 +39,7 @@ async def list_channels(
 async def create_channel(
     data: ChannelCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_creator),
 ):
     slug = slugify(data.name)
     # Ensure unique slug
@@ -57,6 +61,7 @@ async def create_channel(
 async def get_channel(
     channel_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Channel).where(Channel.id == channel_id))
     channel = result.scalar_one_or_none()
@@ -70,6 +75,7 @@ async def update_channel(
     channel_id: uuid.UUID,
     data: ChannelUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_creator),
 ):
     result = await db.execute(select(Channel).where(Channel.id == channel_id))
     channel = result.scalar_one_or_none()
@@ -89,6 +95,7 @@ async def get_channel_kpis(
     channel_id: uuid.UUID,
     period: str = Query("30d", pattern="^(7d|30d|90d|365d)$"),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Channel).where(Channel.id == channel_id))
     channel = result.scalar_one_or_none()
@@ -119,6 +126,7 @@ async def get_channel_kpis(
 async def delete_channel(
     channel_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_creator),
 ):
     result = await db.execute(select(Channel).where(Channel.id == channel_id))
     channel = result.scalar_one_or_none()

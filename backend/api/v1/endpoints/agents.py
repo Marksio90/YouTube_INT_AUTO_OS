@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -6,6 +6,9 @@ import uuid
 from datetime import datetime, timezone
 
 from core.database import get_db
+from core.auth import get_current_user, require_creator
+from core.rate_limit import limiter
+from models.user import User
 from models.agent import AgentRun, AgentStatus
 from schemas.agent import AgentInfo, AgentRunRequest, AgentRunResponse
 
@@ -68,7 +71,10 @@ AGENT_REGISTRY = {
 
 
 @router.get("", response_model=List[AgentInfo])
-async def list_agents(db: AsyncSession = Depends(get_db)):
+async def list_agents(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     agents = []
     for agent_id, info in AGENT_REGISTRY.items():
         # Get stats from DB
@@ -94,21 +100,24 @@ async def list_agents(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{agent_id}/run", response_model=AgentRunResponse, status_code=202)
+@limiter.limit("20/minute")
 async def run_agent(
+    request: Request,
     agent_id: str,
-    request: AgentRunRequest,
+    run_request: AgentRunRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_creator),
 ):
     if agent_id not in AGENT_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
 
     run = AgentRun(
         agent_id=agent_id,
-        video_project_id=request.video_project_id,
-        channel_id=request.channel_id,
+        video_project_id=run_request.video_project_id,
+        channel_id=run_request.channel_id,
         status=AgentStatus.running,
-        input_data=request.input_data,
+        input_data=run_request.input_data,
         started_at=datetime.now(timezone.utc),
     )
     db.add(run)
@@ -116,12 +125,12 @@ async def run_agent(
     await db.refresh(run)
 
     # Queue async execution
-    if request.async_mode:
+    if run_request.async_mode:
         background_tasks.add_task(
             _execute_agent_background,
             str(run.id),
             agent_id,
-            request.input_data,
+            run_request.input_data,
         )
 
     return run
@@ -131,6 +140,7 @@ async def run_agent(
 async def get_run_status(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(AgentRun).where(AgentRun.id == run_id))
     run = result.scalar_one_or_none()
@@ -144,6 +154,7 @@ async def get_agent_history(
     agent_id: str,
     limit: int = 20,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     if agent_id not in AGENT_REGISTRY:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")

@@ -2,8 +2,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
+
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 import structlog
@@ -14,9 +14,8 @@ from core.config import settings
 from core.database import init_db, close_db
 from core.langfuse import flush as langfuse_flush, is_enabled as langfuse_enabled
 from api.v1.router import api_router
+from core.rate_limit import limiter
 
-# Rate limiter instance — shared across the app
-limiter = Limiter(key_func=get_remote_address)
 
 logger = structlog.get_logger(__name__)
 
