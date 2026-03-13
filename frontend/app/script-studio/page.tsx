@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn, getScoreColor } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { ScoreBadge } from "@/components/ui/score-badge";
 import { Zap, RefreshCw, ChevronRight, AlertCircle, CheckCircle, Lightbulb, Loader2 } from "lucide-react";
 import { useVideos, useScript, useGenerateScript } from "@/hooks/useApi";
