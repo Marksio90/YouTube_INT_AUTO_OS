@@ -442,6 +442,60 @@ class YouTubeService:
                 logger.warning("Keyword suggestions failed", error=str(e))
         return []
 
+
+    async def get_channel_analytics(
+        self,
+        channel_id: str,
+        access_token: str,
+        start_date: str,
+        end_date: str,
+    ) -> Dict:
+        """
+        Fetch channel-level analytics from YouTube Analytics API.
+        Requires a valid OAuth access token (not API key).
+
+        Returns aggregated metrics for the given date range:
+        views, estimatedMinutesWatched, averageViewDuration,
+        averageViewPercentage, subscribersGained, estimatedRevenue.
+        """
+        params = {
+            "ids": f"channel=={channel_id}",
+            "startDate": start_date,
+            "endDate": end_date,
+            "metrics": ",".join([
+                "views",
+                "estimatedMinutesWatched",
+                "averageViewDuration",
+                "averageViewPercentage",
+                "subscribersGained",
+                "subscribersLost",
+                "estimatedRevenue",
+                "annotationClickThroughRate",
+            ]),
+            "dimensions": "",
+        }
+
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{YOUTUBE_ANALYTICS_BASE}/reports",
+                    params=params,
+                    headers=headers,
+                    timeout=30.0,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    rows = data.get("rows", [])
+                    col_headers = [c["name"] for c in data.get("columnHeaders", [])]
+                    if rows and col_headers:
+                        return dict(zip(col_headers, rows[0]))
+        except Exception as e:
+            logger.warning("YouTube Analytics API failed", error=str(e))
+
+        return {}
+
     # ============================================================
     # Helpers
     # ============================================================

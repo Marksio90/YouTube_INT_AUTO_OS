@@ -474,3 +474,76 @@ def run_full_video_pipeline(video_project_id: str, channel_id: str, input_data: 
     pipeline.apply_async()
 
     return {"pipeline_started": True, "run_ids": run_ids}
+
+
+# ============================================================
+# Layer 2 — Content Design (additional)
+# ============================================================
+
+@celery_app.task(bind=True, name="tasks.agent_tasks.run_voice_persona", max_retries=2)
+def run_voice_persona(self, run_id: str, input_data: dict):
+    async def _execute():
+        try:
+            from agents.content.voice_persona import voice_persona_agent
+            await _update_run_status(run_id, AgentStatus.running)
+            output = await voice_persona_agent.execute(input_data)
+            await _update_run_status(run_id, AgentStatus.completed, output)
+            return output
+        except Exception as exc:
+            await _update_run_status(run_id, AgentStatus.error, error=str(exc))
+            raise self.retry(exc=exc, countdown=30)
+    return run_async(_execute())
+
+
+# ============================================================
+# Layer 3 — Production (additional)
+# ============================================================
+
+@celery_app.task(bind=True, name="tasks.agent_tasks.run_asset_retrieval", max_retries=2)
+def run_asset_retrieval(self, run_id: str, input_data: dict):
+    async def _execute():
+        try:
+            from agents.production.asset_retrieval import asset_retrieval_agent
+            await _update_run_status(run_id, AgentStatus.running)
+            output = await asset_retrieval_agent.execute(input_data)
+            await _update_run_status(run_id, AgentStatus.completed, output)
+            return output
+        except Exception as exc:
+            await _update_run_status(run_id, AgentStatus.error, error=str(exc))
+            raise self.retry(exc=exc, countdown=30)
+    return run_async(_execute())
+
+
+@celery_app.task(bind=True, name="tasks.agent_tasks.run_video_assembly_agent",
+                 max_retries=1, queue="video_rendering", time_limit=1800)
+def run_video_assembly_agent(self, run_id: str, input_data: dict):
+    async def _execute():
+        try:
+            from agents.production.video_assembly import video_assembly_agent
+            await _update_run_status(run_id, AgentStatus.running)
+            output = await video_assembly_agent.execute(input_data)
+            await _update_run_status(run_id, AgentStatus.completed, output)
+            return output
+        except Exception as exc:
+            await _update_run_status(run_id, AgentStatus.error, error=str(exc))
+            raise self.retry(exc=exc, countdown=60)
+    return run_async(_execute())
+
+
+# ============================================================
+# Layer 5 — Compliance / Portfolio (additional)
+# ============================================================
+
+@celery_app.task(bind=True, name="tasks.agent_tasks.run_channel_portfolio", max_retries=2)
+def run_channel_portfolio(self, run_id: str, input_data: dict):
+    async def _execute():
+        try:
+            from agents.strategic.channel_portfolio import channel_portfolio_agent
+            await _update_run_status(run_id, AgentStatus.running)
+            output = await channel_portfolio_agent.execute(input_data)
+            await _update_run_status(run_id, AgentStatus.completed, output)
+            return output
+        except Exception as exc:
+            await _update_run_status(run_id, AgentStatus.error, error=str(exc))
+            raise self.retry(exc=exc, countdown=30)
+    return run_async(_execute())
