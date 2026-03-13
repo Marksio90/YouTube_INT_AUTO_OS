@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
@@ -9,7 +9,7 @@ from core.database import get_db
 from core.auth import get_current_user, require_creator
 from models.user import User
 from models.agent import NicheAnalysis, AgentRun, AgentStatus
-from schemas.agent import NicheAnalysisResponse
+from schemas.agent import NicheAnalysisResponse, NicheAnalyzeRequest
 
 router = APIRouter(prefix="/niches", tags=["niches"])
 
@@ -33,7 +33,7 @@ async def list_niches(
 
 @router.post("/analyze", status_code=202)
 async def trigger_niche_analysis(
-    data: dict,
+    data: NicheAnalyzeRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_creator),
@@ -42,17 +42,14 @@ async def trigger_niche_analysis(
     Trigger niche analysis pipeline: Niche Hunter → Opportunity Mapper → Competitive Deconstruction.
     Returns a run_id for SSE polling.
     """
-    niche_name = data.get("niche_name")
-    if not niche_name:
-        raise HTTPException(status_code=422, detail="niche_name is required")
-
     run = AgentRun(
         agent_id="niche_hunter",
         status=AgentStatus.running,
         input_data={
-            "niche_name": niche_name,
-            "category": data.get("category", ""),
-            "channel_id": str(data["channel_id"]) if data.get("channel_id") else None,
+            "niche_name": data.niche_name,
+            "category": data.category or "",
+            "target_country": data.target_country,
+            "language": data.language,
         },
         started_at=datetime.now(timezone.utc),
     )

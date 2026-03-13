@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { ScoreBadge } from "@/components/ui/score-badge";
 import { Zap, RefreshCw, ChevronRight, AlertCircle, CheckCircle, Lightbulb, Loader2 } from "lucide-react";
 import { useVideos, useScript, useGenerateScript } from "@/hooks/useApi";
+import { AgentRunProgress } from "@/components/ui/agent-run-progress";
 import type { VideoProject } from "@/types";
 
 const SCRIPT_SECTIONS = [
@@ -19,6 +20,7 @@ const SCRIPT_SECTIONS = [
 export default function ScriptStudioPage() {
   const [activeSection, setActiveSection] = useState("hook");
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
   // Videos in "script" stage have active scripts
   const { data: allVideos = [], isLoading: videosLoading } = useVideos(undefined, "script");
@@ -115,6 +117,16 @@ export default function ScriptStudioPage() {
         </div>
       )}
 
+      {/* Agent run progress */}
+      {activeRunId && (
+        <AgentRunProgress
+          runId={activeRunId}
+          onComplete={() => setActiveRunId(null)}
+          onError={() => setActiveRunId(null)}
+          className="shrink-0"
+        />
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center flex-1 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />
@@ -132,11 +144,20 @@ export default function ScriptStudioPage() {
           <div className="text-center text-muted-foreground">
             <p className="text-lg font-medium mb-2">Brak skryptu dla tego projektu</p>
             <button
-              onClick={() => generateScript.mutate({
-                video_project_id: selectedVideo.id,
-                topic: selectedVideo.title,
-                target_keywords: selectedVideo.targetKeywords,
-              })}
+              onClick={() => generateScript.mutate(
+                {
+                  video_project_id: selectedVideo.id,
+                  topic: selectedVideo.title,
+                  target_keywords: selectedVideo.targetKeywords,
+                },
+                {
+                  onSuccess: (data) => {
+                    if ((data as Record<string, unknown>)?.run_id) {
+                      setActiveRunId((data as Record<string, unknown>).run_id as string);
+                    }
+                  },
+                }
+              )}
               disabled={generateScript.isPending}
               className="mt-3 bg-primary text-white text-sm px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-2 mx-auto disabled:opacity-50"
             >

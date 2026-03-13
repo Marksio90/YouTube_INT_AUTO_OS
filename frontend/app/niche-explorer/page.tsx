@@ -15,6 +15,7 @@ import {
   ZAxis,
 } from "recharts";
 import { useNicheAnalyses, useRunNicheAnalysis } from "@/hooks/useApi";
+import { AgentRunProgress } from "@/components/ui/agent-run-progress";
 import type { NicheScore } from "@/types";
 
 export default function NicheExplorerPage() {
@@ -24,7 +25,8 @@ export default function NicheExplorerPage() {
   const [newNicheName, setNewNicheName] = useState("");
   const [newNicheCategory, setNewNicheCategory] = useState("");
 
-  const { data: niches = [], isLoading, error } = useNicheAnalyses();
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const { data: niches = [], isLoading, error, refetch } = useNicheAnalyses();
   const runAnalysis = useRunNicheAnalysis();
 
   const filtered = niches.filter(
@@ -49,10 +51,11 @@ export default function NicheExplorerPage() {
     runAnalysis.mutate(
       { niche_name: newNicheName.trim(), category: newNicheCategory.trim() || undefined },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
           setShowAnalyzeForm(false);
           setNewNicheName("");
           setNewNicheCategory("");
+          if (data?.run_id) setActiveRunId(data.run_id);
         },
       }
     );
@@ -108,6 +111,15 @@ export default function NicheExplorerPage() {
             Uruchom analize
           </button>
         </div>
+      )}
+
+      {/* Agent run progress */}
+      {activeRunId && (
+        <AgentRunProgress
+          runId={activeRunId}
+          onComplete={() => { refetch(); setActiveRunId(null); }}
+          onError={() => setActiveRunId(null)}
+        />
       )}
 
       {/* Quality Gate Banner */}
