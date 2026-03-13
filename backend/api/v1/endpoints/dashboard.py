@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from core.database import get_db
+from core.auth import get_current_user
+from models.user import User
 from models.channel import Channel
 from models.video import VideoProject
 
@@ -10,7 +12,10 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/overview")
-async def get_overview(db: AsyncSession = Depends(get_db)):
+async def get_overview(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Get high-level portfolio overview for main dashboard."""
     # Channel stats
     channels_result = await db.execute(
@@ -49,7 +54,10 @@ async def get_overview(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/alerts")
-async def get_alerts(db: AsyncSession = Depends(get_db)):
+async def get_alerts(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Get current compliance, performance, and milestone alerts."""
     # In production: query from alerts table populated by agent background jobs
     return {

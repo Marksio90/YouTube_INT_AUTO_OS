@@ -8,12 +8,14 @@ Flow:
   3. GET /youtube-oauth/{channel_id}/status     → check if channel is authorized
   4. DELETE /youtube-oauth/{channel_id}/revoke  → disconnect channel
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import RedirectResponse
 from urllib.parse import urlparse
 
 from services.youtube_oauth_service import youtube_oauth_service
 from core.config import settings
+from core.auth import get_current_user
+from models.user import User
 
 router = APIRouter(prefix="/youtube-oauth", tags=["YouTube OAuth"])
 
@@ -43,7 +45,11 @@ def _build_redirect_uri(request_base_url: str) -> str:
 
 
 @router.get("/{channel_id}/authorize")
-async def start_oauth(channel_id: str, base_url: str = Query(..., description="Base URL of this server — must be in ALLOWED_ORIGINS")):
+async def start_oauth(
+    channel_id: str,
+    base_url: str = Query(..., description="Base URL of this server — must be in ALLOWED_ORIGINS"),
+    current_user: User = Depends(get_current_user),
+):
     """
     Generate Google OAuth authorization URL for a channel.
     Redirect the user to the returned URL to grant access.
@@ -70,6 +76,7 @@ async def oauth_callback(
     """
     Google redirects here after user grants/denies access.
     Exchanges authorization code for tokens and stores them for the channel.
+    Note: No auth required — this endpoint is called by Google's OAuth servers.
     """
     channel_id = state
     redirect_uri = _build_redirect_uri(base_url)
@@ -89,14 +96,20 @@ async def oauth_callback(
 
 
 @router.get("/{channel_id}/status")
-async def oauth_status(channel_id: str):
+async def oauth_status(
+    channel_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """Check YouTube OAuth authorization status for a channel."""
     status = await youtube_oauth_service.get_token_status(channel_id)
     return {"channel_id": channel_id, **status}
 
 
 @router.delete("/{channel_id}/revoke")
-async def oauth_revoke(channel_id: str):
+async def oauth_revoke(
+    channel_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """Revoke stored YouTube OAuth tokens for a channel."""
     try:
         await youtube_oauth_service.revoke_tokens(channel_id)

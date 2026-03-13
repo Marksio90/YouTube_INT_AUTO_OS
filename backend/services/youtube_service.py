@@ -38,8 +38,49 @@ _QUOTA_COSTS = {
 class YouTubeService:
     def __init__(self):
         self.api_key = settings.youtube_api_key
-        self._quota_used_today = 0
-        self._quota_reset_date = date.today()
+        # Fallback in-memory quota (used when Redis is unavailable)
+        self._quota_used_fallback = 0
+        self._quota_reset_date_fallback = date.today()
+
+    async def _get_redis(self):
+        import redis.asyncio as aioredis
+        return aioredis.from_url(settings.redis_url, decode_responses=True, socket_connect_timeout=1)
+
+    async def _redis_charge_quota(self, cost: int) -> int:
+        """Atomically charge quota in Redis. Returns new total. Falls back to in-memory."""
+        today = date.today().isoformat()
+        key = f"yt_quota:{today}"
+        try:
+            client = await self._get_redis()
+            async with client:
+                pipe = client.pipeline()
+                pipe.incrby(key, cost)
+                pipe.expire(key, 90_000)  # 25 h TTL — survives midnight briefly
+                results = await pipe.execute()
+                return results[0]
+        except Exception:
+            # Redis unavailable — fall back to instance-level counter
+            today_date = date.today()
+            if today_date != self._quota_reset_date_fallback:
+                self._quota_used_fallback = 0
+                self._quota_reset_date_fallback = today_date
+            self._quota_used_fallback += cost
+            return self._quota_used_fallback
+
+    async def _redis_get_quota_used(self) -> int:
+        """Get today's quota used from Redis. Falls back to in-memory."""
+        today = date.today().isoformat()
+        key = f"yt_quota:{today}"
+        try:
+            client = await self._get_redis()
+            async with client:
+                val = await client.get(key)
+                return int(val) if val else 0
+        except Exception:
+            today_date = date.today()
+            if today_date != self._quota_reset_date_fallback:
+                return 0
+            return self._quota_used_fallback
 
     # ============================================================
     # Channel Metrics
@@ -405,23 +446,18 @@ class YouTubeService:
     # Helpers
     # ============================================================
 
-    def _charge_quota(self, url: str) -> int:
-        """Determine quota cost from URL and increment counter. Resets at midnight."""
-        today = date.today()
-        if today != self._quota_reset_date:
-            self._quota_used_today = 0
-            self._quota_reset_date = today
-
-        # Derive operation type from URL path
+    def _get_cost_for_url(self, url: str) -> int:
+        """Determine quota cost from URL path segment."""
         for key in _QUOTA_COSTS:
             if f"/{key}" in url:
-                cost = _QUOTA_COSTS[key]
-                break
-        else:
-            cost = _QUOTA_COSTS["default"]
+                return _QUOTA_COSTS[key]
+        return _QUOTA_COSTS["default"]
 
-        self._quota_used_today += cost
-        logger.debug("YouTube quota charged", cost=cost, total_used=self._quota_used_today, url=url)
+    async def _charge_quota(self, url: str) -> int:
+        """Determine quota cost from URL and increment counter in Redis."""
+        cost = self._get_cost_for_url(url)
+        total = await self._redis_charge_quota(cost)
+        logger.debug("YouTube quota charged", cost=cost, total_used=total, url=url)
         return cost
 
     async def _api_call(
@@ -432,14 +468,15 @@ class YouTubeService:
         headers: dict = None,
         retries: int = 3,
     ) -> Dict:
-        if self.quota_remaining <= 0:
+        quota_remaining = await self.get_quota_remaining()
+        if quota_remaining <= 0:
             raise Exception("YouTube API daily quota exhausted. Try again tomorrow.")
 
         for attempt in range(retries):
             try:
                 response = await client.get(url, params=params, headers=headers, timeout=30.0)
                 if response.status_code == 200:
-                    self._charge_quota(url)
+                    await self._charge_quota(url)
                     return response.json()
                 elif response.status_code == 429:
                     wait = 2 ** attempt * 2
@@ -448,7 +485,7 @@ class YouTubeService:
                 elif response.status_code == 403:
                     error = response.json().get("error", {})
                     if "quotaExceeded" in str(error):
-                        self._quota_used_today = settings.youtube_daily_api_quota  # mark as exhausted
+                        await self._redis_charge_quota(settings.youtube_daily_api_quota)  # mark as exhausted
                         raise Exception("YouTube API daily quota exceeded (10,000 units)")
                     raise Exception(f"YouTube API forbidden: {error}")
                 else:
@@ -472,13 +509,10 @@ class YouTubeService:
                 return match.group(1)
         return None
 
-    @property
-    def quota_remaining(self) -> int:
-        today = date.today()
-        if today != self._quota_reset_date:
-            self._quota_used_today = 0
-            self._quota_reset_date = today
-        return settings.youtube_daily_api_quota - self._quota_used_today
+    async def get_quota_remaining(self) -> int:
+        """Return remaining YouTube API quota units for today (Redis-backed)."""
+        used = await self._redis_get_quota_used()
+        return max(0, settings.youtube_daily_api_quota - used)
 
 
 youtube_service = YouTubeService()

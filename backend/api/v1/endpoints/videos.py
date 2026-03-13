@@ -2,10 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
+from datetime import datetime, timezone
 import uuid
 
 from core.database import get_db
+from core.auth import get_current_user, require_creator
+from models.user import User
 from models.video import VideoProject, PipelineStage, ComplianceReport, VideoAnalytics
+from models.agent import AgentRun, AgentStatus
 from schemas.video import (
     VideoProjectCreate, VideoProjectUpdate, VideoProjectResponse,
     ComplianceReportResponse,
@@ -24,6 +28,7 @@ async def list_videos(
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     query = select(VideoProject)
     if channel_id:
@@ -39,6 +44,7 @@ async def list_videos(
 async def create_video(
     data: VideoProjectCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_creator),
 ):
     video = VideoProject(**data.model_dump())
     db.add(video)
@@ -51,6 +57,7 @@ async def create_video(
 async def get_video(
     video_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(VideoProject).where(VideoProject.id == video_id))
     video = result.scalar_one_or_none()
@@ -64,13 +71,13 @@ async def update_video(
     video_id: uuid.UUID,
     data: VideoProjectUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_creator),
 ):
     result = await db.execute(select(VideoProject).where(VideoProject.id == video_id))
     video = result.scalar_one_or_none()
     if not video:
         raise HTTPException(status_code=404, detail="Video project not found")
 
-    # Allowlist of fields that can be updated via this endpoint
     ALLOWED_UPDATE_FIELDS = {"title", "stage", "target_keywords", "scheduled_for"}
     updates = {
         k: v for k, v in data.model_dump(exclude_none=True).items()
@@ -94,6 +101,7 @@ async def advance_video_stage(
     stage_data: dict,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_creator),
 ):
     result = await db.execute(select(VideoProject).where(VideoProject.id == video_id))
     video = result.scalar_one_or_none()
@@ -104,7 +112,6 @@ async def advance_video_stage(
     if new_stage not in STAGE_ORDER:
         raise HTTPException(status_code=400, detail=f"Invalid stage: {new_stage}")
 
-    # Quality gate check before advancing to review
     if new_stage == "review":
         if video.originality_score and video.originality_score < 85:
             raise HTTPException(
@@ -122,6 +129,7 @@ async def advance_video_stage(
 async def get_compliance_report(
     video_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
         select(ComplianceReport).where(ComplianceReport.video_project_id == video_id)
@@ -137,6 +145,7 @@ async def run_compliance_check(
     video_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_creator),
 ):
     """Trigger Originality & Transformation Agent + Rights & Risk Agent."""
     result = await db.execute(select(VideoProject).where(VideoProject.id == video_id))
@@ -144,5 +153,29 @@ async def run_compliance_check(
     if not video:
         raise HTTPException(status_code=404, detail="Video project not found")
 
-    # In production: background_tasks.add_task(run_compliance_agents, video_id)
-    return {"message": "Compliance check queued", "video_id": str(video_id)}
+    run = AgentRun(
+        agent_id="originality_transformation",
+        video_project_id=video_id,
+        channel_id=video.channel_id,
+        status=AgentStatus.running,
+        input_data={"video_project_id": str(video_id), "channel_id": str(video.channel_id)},
+        started_at=datetime.now(timezone.utc),
+    )
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+
+    from api.v1.endpoints.agents import _execute_agent_background
+    background_tasks.add_task(
+        _execute_agent_background,
+        str(run.id),
+        "originality_transformation",
+        run.input_data,
+    )
+
+    return {
+        "message": "Compliance check queued",
+        "video_id": str(video_id),
+        "run_id": str(run.id),
+        "stream_url": f"/api/v1/agents/runs/{run.id}/stream",
+    }

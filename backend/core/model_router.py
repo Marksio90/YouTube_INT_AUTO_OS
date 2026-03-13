@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import enum
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Optional
 import structlog
@@ -119,7 +120,7 @@ class ModelRouter:
 
     def __init__(self, config: Optional[ModelRouterConfig] = None):
         self.config = config or ModelRouterConfig()
-        self._decision_log: list[RoutingDecision] = []
+        self._decision_log: deque[RoutingDecision] = deque(maxlen=10_000)
 
     # ------------------------------------------------------------------ #
     # Public API
