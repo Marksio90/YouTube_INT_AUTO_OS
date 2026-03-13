@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ARRAY, Enum
+from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ARRAY, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
@@ -44,6 +44,13 @@ class Channel(Base, UUIDMixin, TimestampMixin):
 
     # Blueprint JSON (from Channel Architect Agent)
     blueprint = Column(JSONB, default={})
+
+    # Composite and single-column indexes for common query patterns
+    __table_args__ = (
+        Index("ix_channels_is_active_created_at", "is_active", "created_at"),
+        Index("ix_channels_niche", "niche"),
+        Index("ix_channels_ypp_status", "ypp_status"),
+    )
 
     # Relationships
     videos = relationship("VideoProject", back_populates="channel", lazy="dynamic")

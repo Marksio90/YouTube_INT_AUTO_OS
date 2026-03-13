@@ -11,6 +11,83 @@ from models.user import User
 from models.channel import Channel
 from schemas.channel import ChannelCreate, ChannelUpdate, ChannelResponse, ChannelKPIResponse
 
+
+async def _fetch_channel_kpis(channel, period: str) -> dict:
+    """
+    Fetch real KPI data from YouTube Analytics API using stored OAuth tokens.
+    Falls back to zeros if channel is not OAuth-authorized or API is unavailable.
+    """
+    _PERIOD_DAYS = {"7d": 7, "30d": 30, "90d": 90, "365d": 365}
+    days = _PERIOD_DAYS.get(period, 30)
+
+    if not channel.youtube_channel_id:
+        return _zero_kpis()
+
+    try:
+        from services.youtube_oauth_service import youtube_oauth_service
+        from services.youtube_service import youtube_service
+        from datetime import date, timedelta
+
+        access_token = await youtube_oauth_service.get_valid_access_token(str(channel.id))
+        if not access_token:
+            return _zero_kpis()
+
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+        prev_start = start_date - timedelta(days=days)
+
+        current = await youtube_service.get_channel_analytics(
+            channel_id=channel.youtube_channel_id,
+            access_token=access_token,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+        )
+        previous = await youtube_service.get_channel_analytics(
+            channel_id=channel.youtube_channel_id,
+            access_token=access_token,
+            start_date=prev_start.isoformat(),
+            end_date=start_date.isoformat(),
+        )
+
+        def _pct_change(curr, prev):
+            if not prev:
+                return 0.0
+            return round((curr - prev) / prev * 100, 1)
+
+        return {
+            "subscribers_growth": _pct_change(
+                current.get("subscribersGained", 0), previous.get("subscribersGained", 0)
+            ),
+            "views_growth": _pct_change(current.get("views", 0), previous.get("views", 0)),
+            "watch_hours_growth": _pct_change(
+                current.get("estimatedMinutesWatched", 0),
+                previous.get("estimatedMinutesWatched", 0),
+            ),
+            "avg_ctr": round(current.get("annotationClickThroughRate", 0) * 100, 2),
+            "avg_retention": round(current.get("averageViewPercentage", 0), 1),
+            "avg_view_duration": round(current.get("averageViewDuration", 0), 0),
+            "revenue_growth": _pct_change(
+                current.get("estimatedRevenue", 0), previous.get("estimatedRevenue", 0)
+            ),
+            "rpm": round(current.get("estimatedRevenue", 0) / max(current.get("views", 1), 1) * 1000, 2),
+        }
+    except Exception:
+        return _zero_kpis()
+
+
+def _zero_kpis() -> dict:
+    return {
+        "subscribers_growth": 0.0,
+        "views_growth": 0.0,
+        "watch_hours_growth": 0.0,
+        "avg_ctr": 0.0,
+        "avg_retention": 0.0,
+        "avg_view_duration": 0.0,
+        "revenue_growth": 0.0,
+        "rpm": 0.0,
+    }
+
+
 router = APIRouter(prefix="/channels", tags=["channels"])
 
 
@@ -102,22 +179,22 @@ async def get_channel_kpis(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    # In production: query YouTube Analytics API via SEO Intelligence Agent
-    # For now, return mock calculated values
+    # Fetch real analytics from YouTube Analytics API if OAuth tokens available
+    analytics_data = await _fetch_channel_kpis(channel, period)
     return ChannelKPIResponse(
         channel_id=channel_id,
         subscribers=channel.subscribers,
-        subscribers_growth=12.5,
+        subscribers_growth=analytics_data["subscribers_growth"],
         views=channel.total_views,
-        views_growth=18.3,
+        views_growth=analytics_data["views_growth"],
         watch_hours=channel.watch_hours,
-        watch_hours_growth=21.0,
-        avg_ctr=6.8,
-        avg_retention=38.5,
-        avg_view_duration=485.0,
+        watch_hours_growth=analytics_data["watch_hours_growth"],
+        avg_ctr=analytics_data["avg_ctr"],
+        avg_retention=analytics_data["avg_retention"],
+        avg_view_duration=analytics_data["avg_view_duration"],
         revenue=channel.monthly_revenue,
-        revenue_growth=22.4,
-        rpm=12.4,
+        revenue_growth=analytics_data["revenue_growth"],
+        rpm=analytics_data["rpm"],
         period=period,
     )
 
