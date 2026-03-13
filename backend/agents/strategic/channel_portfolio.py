@@ -104,7 +104,7 @@ class ChannelPortfolioAgent(BaseAgent):
 
     async def _analyze_portfolio(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = PORTFOLIO_ANALYSIS_PROMPT | self.llm_premium
+        chain = PORTFOLIO_ANALYSIS_PROMPT | self.get_routed_llm("channel_strategy")
 
         response = await chain.ainvoke({
             "channels": json.dumps(input_data.get("channels", [])),

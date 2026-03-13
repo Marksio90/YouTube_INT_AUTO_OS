@@ -100,7 +100,7 @@ class FormatLocalizerAgent(BaseAgent):
 
     async def _adapt_formats(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = FORMAT_ADAPTATION_PROMPT | self.llm_premium
+        chain = FORMAT_ADAPTATION_PROMPT | self.get_routed_llm("localize_format")
 
         script_text = input_data.get("script_text", "")
         word_count = len(script_text.split())

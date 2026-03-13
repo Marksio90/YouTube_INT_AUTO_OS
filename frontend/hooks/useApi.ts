@@ -5,6 +5,7 @@ import {
   agentsApi,
   dashboardApi,
   scriptsApi,
+  nichesApi,
   authApi,
 } from "@/lib/api";
 
@@ -151,5 +152,27 @@ export function useScript(id: string) {
 export function useGenerateScript() {
   return useMutation({
     mutationFn: scriptsApi.generate,
+  });
+}
+
+// ============================================================
+// Niche Hooks
+// ============================================================
+
+
+export function useNicheAnalyses(channelId?: string) {
+  return useQuery({
+    queryKey: ["niches", { channelId }],
+    queryFn: () => nichesApi.list(channelId),
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useRunNicheAnalysis() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: nichesApi.analyze,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["niches"] }),
   });
 }

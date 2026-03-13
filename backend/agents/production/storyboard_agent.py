@@ -97,7 +97,7 @@ class StoryboardAgent(BaseAgent):
 
     async def _create_storyboard(self, state: AgentState) -> AgentState:
         input_data = state["input_data"]
-        chain = STORYBOARD_PROMPT | self.llm_premium
+        chain = STORYBOARD_PROMPT | self.get_routed_llm("storyboard_generation")
 
         word_count = len(input_data.get("script_text", "").split())
         target_duration = input_data.get("target_duration", int(word_count / 130 * 60))
