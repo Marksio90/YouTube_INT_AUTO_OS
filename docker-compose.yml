@@ -50,8 +50,10 @@ services:
       APP_ENV: development
       DATABASE_URL: postgresql+asyncpg://ytautos:password@postgres:5432/ytautos_db
       REDIS_URL: redis://redis:6379/0
+      ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     volumes:
       - ./backend:/app
     depends_on:
@@ -78,8 +80,10 @@ services:
       APP_ENV: development
       DATABASE_URL: postgresql+asyncpg://ytautos:password@postgres:5432/ytautos_db
       REDIS_URL: redis://redis:6379/0
+      ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     volumes:
       - ./backend:/app
     depends_on:
