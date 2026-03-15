@@ -29,7 +29,7 @@ export default function CompliancePage() {
 
   const qualityGates = [
     {
-      name: "Originality Score",
+      name: "Wynik Oryginalności",
       threshold: "≥ 85/100",
       current: channels.length > 0
         ? Math.round(channels.reduce((s: number, c: Channel) => s + (c.originalityScore ?? 0), 0) / channels.length)
@@ -37,7 +37,7 @@ export default function CompliancePage() {
       passed: channels.length > 0 && channels.every((c: Channel) => (c.originalityScore ?? 0) >= 85),
     },
     {
-      name: "Compliance Score",
+      name: "Wynik Zgodności",
       threshold: "≥ 80/100",
       current: channels.length > 0
         ? Math.round(channels.reduce((s: number, c: Channel) => s + (c.complianceScore ?? 0), 0) / channels.length)
@@ -45,27 +45,27 @@ export default function CompliancePage() {
       passed: channels.length > 0 && channels.every((c: Channel) => (c.complianceScore ?? 0) >= 80),
     },
     {
-      name: "Cross-video Similarity",
+      name: "Podobieństwo Między Filmami",
       threshold: "cosine < 0.85",
-      current: "Sprawdz agenta",
+      current: "Sprawdź agenta",
       passed: true,
     },
     {
-      name: "Copyright Risk",
-      threshold: "Green",
-      current: "Green",
+      name: "Ryzyko Praw Autorskich",
+      threshold: "Zielony",
+      current: "Zielony",
       passed: true,
     },
     {
-      name: "AI Disclosure",
-      threshold: "Set dla synth. media",
-      current: "Set",
+      name: "Ujawnienie AI",
+      threshold: "Ustawione dla synth. mediów",
+      current: "Ustawione",
       passed: true,
     },
     {
-      name: "YPP Advertiser Safe",
+      name: "Bezpieczeństwo Reklamodawcy YPP",
       threshold: "Tak",
-      current: channels.some((c: Channel) => c.yppStatus === "active") ? "Tak" : "Sprawdz",
+      current: channels.some((c: Channel) => c.yppStatus === "active") ? "Tak" : "Sprawdź",
       passed: channels.some((c: Channel) => c.yppStatus === "active"),
     },
   ];
@@ -80,7 +80,7 @@ export default function CompliancePage() {
             Compliance Center
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Agenci: Originality & Transformation • Rights & Risk • Monetization Readiness
+            Agenci: Oryginalność i Transformacja • Prawa i Ryzyko • Gotowość do Monetyzacji
           </p>
         </div>
         <button className="bg-primary text-white text-sm px-4 py-2 rounded-lg hover:bg-primary/90">

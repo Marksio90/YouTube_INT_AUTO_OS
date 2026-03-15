@@ -39,9 +39,9 @@ export default function AnalyticsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Analytics & Forensics</h1>
+          <h1 className="text-2xl font-bold">Analityka i Diagnostyka</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Agenci: Watch-Time Forensics • Experimentation • SEO Intelligence
+            Agenci: Analiza Czasu Oglądania • Eksperymentowanie • Inteligencja SEO
           </p>
         </div>
       </div>
@@ -106,7 +106,7 @@ export default function AnalyticsPage() {
             <div className="bg-card border border-border rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-semibold">Krzywa Retencji</h2>
-                <span className="text-xs text-muted-foreground">Watch-Time Forensics Agent</span>
+                <span className="text-xs text-muted-foreground">Agent: Analiza Czasu Oglądania</span>
               </div>
               {retentionData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={240}>

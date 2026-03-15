@@ -31,7 +31,7 @@ export default function LoginPage() {
       router.push("/dashboard");
     } catch (err: unknown) {
       const apiErr = err as { detail?: string; message?: string };
-      setError(apiErr?.detail || apiErr?.message || "Authentication failed");
+      setError(apiErr?.detail || apiErr?.message || "Błąd logowania");
     }
   };
 
@@ -44,25 +44,25 @@ export default function LoginPage() {
             <Youtube className="h-8 w-8 text-red-500" />
             <span className="text-2xl font-bold text-white">YT Intel OS</span>
           </div>
-          <p className="text-gray-400 text-sm">YouTube Intelligence & Automation Platform</p>
+          <p className="text-gray-400 text-sm">Platforma Automatyzacji YouTube</p>
         </div>
 
         <Card className="bg-gray-900 border-gray-800">
           <CardHeader>
             <CardTitle className="text-white text-center">
-              {mode === "login" ? "Sign In" : "Create Account"}
+              {mode === "login" ? "Zaloguj się" : "Utwórz konto"}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === "register" && (
                 <div className="space-y-1">
-                  <Label className="text-gray-300">Full Name</Label>
+                  <Label className="text-gray-300">Imię i nazwisko</Label>
                   <Input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Your name"
+                    placeholder="Twoje imię"
                     className="bg-gray-800 border-gray-700 text-white"
                   />
                 </div>
@@ -73,13 +73,13 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="ty@przyklad.pl"
                   required
                   className="bg-gray-800 border-gray-700 text-white"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-gray-300">Password</Label>
+                <Label className="text-gray-300">Hasło</Label>
                 <Input
                   type="password"
                   value={password}
@@ -103,18 +103,18 @@ export default function LoginPage() {
                 className="w-full bg-red-600 hover:bg-red-700"
               >
                 {isLoading ? (
-                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Processing...</>
-                ) : mode === "login" ? "Sign In" : "Create Account"}
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Przetwarzanie...</>
+                ) : mode === "login" ? "Zaloguj się" : "Utwórz konto"}
               </Button>
 
               <p className="text-center text-sm text-gray-400">
-                {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+                {mode === "login" ? "Nie masz konta?" : "Masz już konto?"}{" "}
                 <button
                   type="button"
                   onClick={() => setMode(mode === "login" ? "register" : "login")}
                   className="text-red-400 hover:text-red-300 underline"
                 >
-                  {mode === "login" ? "Register" : "Sign In"}
+                  {mode === "login" ? "Zarejestruj się" : "Zaloguj się"}
                 </button>
               </p>
             </form>

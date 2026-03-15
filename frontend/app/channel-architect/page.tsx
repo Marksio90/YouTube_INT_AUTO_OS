@@ -118,7 +118,7 @@ export default function ChannelArchitectPage() {
             Channel Architect
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Agent: Channel Architect • Projektuje pozycjonowanie, filary tresci i DNA kanalu
+            Agent: Architekt Kanału • Projektuje pozycjonowanie, filary treści i DNA kanału
           </p>
         </div>
       </div>
@@ -241,7 +241,7 @@ export default function ChannelArchitectPage() {
               <div className="bg-card border border-border rounded-lg p-4">
                 <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
                   <Mic className="w-4 h-4 text-blue-500" />
-                  Voice Persona
+                  Persona Głosowa
                 </h3>
                 <div className="space-y-2">
                   {blueprint.voice_persona.name && (
@@ -252,7 +252,7 @@ export default function ChannelArchitectPage() {
                       <span className="text-xs bg-blue-500/10 text-blue-700 px-2 py-0.5 rounded-full">{blueprint.voice_persona.tone}</span>
                     )}
                     {blueprint.voice_persona.energy && (
-                      <span className="text-xs bg-green-500/10 text-green-700 px-2 py-0.5 rounded-full">energy: {blueprint.voice_persona.energy}</span>
+                      <span className="text-xs bg-green-500/10 text-green-700 px-2 py-0.5 rounded-full">energia: {blueprint.voice_persona.energy}</span>
                     )}
                   </div>
                   {blueprint.voice_persona.key_phrases && blueprint.voice_persona.key_phrases.length > 0 && (
@@ -361,7 +361,7 @@ export default function ChannelArchitectPage() {
             <div className="bg-card border border-border rounded-lg p-4">
               <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
                 <List className="w-4 h-4 text-red-500" />
-                Brand Rules
+                Zasady Marki
               </h3>
               <ul className="space-y-1.5">
                 {blueprint.brand_rules.map((rule, i) => (
