@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from typing import List, Any
 import secrets
 import json
@@ -22,20 +22,32 @@ class Settings(BaseSettings):
     app_name: str = "YouTube Intelligence & Automation OS"
     app_version: str = "1.0.0"
     secret_key: str = _DEV_SECRET_KEY
-    allowed_origins: List[str] = ["http://localhost:3000"]
+    # Stored as str to prevent pydantic-settings from calling json.loads() before
+    # our validator runs. The @property below exposes it as List[str].
+    allowed_origins_raw: str = Field(
+        default="http://localhost:3000",
+        validation_alias="ALLOWED_ORIGINS",
+    )
     debug: bool = False
 
-    @field_validator("allowed_origins", mode="before")
+    @field_validator("allowed_origins_raw", mode="before")
     @classmethod
-    def parse_allowed_origins(cls, v: Any) -> Any:
+    def parse_allowed_origins(cls, v: Any) -> str:
+        if isinstance(v, list):
+            return ",".join(str(o) for o in v)
         if isinstance(v, str):
             v = v.strip()
             if not v:
-                return ["http://localhost:3000"]
+                return "http://localhost:3000"
             if v.startswith("["):
-                return json.loads(v)
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+                lst = json.loads(v)
+                return ",".join(str(o) for o in lst)
+            return v
+        return "http://localhost:3000"
+
+    @property
+    def allowed_origins(self) -> List[str]:
+        return [o.strip() for o in self.allowed_origins_raw.split(",") if o.strip()]
 
     @field_validator("secret_key")
     @classmethod
