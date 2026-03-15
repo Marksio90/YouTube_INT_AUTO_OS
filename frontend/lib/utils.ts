@@ -27,23 +27,23 @@ export function formatDuration(seconds: number): string {
 
 /** Format ISO date string to locale-friendly short format */
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return new Date(iso).toLocaleDateString("pl-PL", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-/** Format ISO date string to relative time: "2 hours ago" */
+/** Format ISO date string to relative time: "2 godziny temu" */
 export function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return "przed chwilą";
+  if (minutes < 60) return `${minutes} min temu`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours} godz. temu`;
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return `${days} dni temu`;
   return formatDate(iso);
 }
 
@@ -81,15 +81,15 @@ export function formatCurrency(amount: number): string {
 
 /** Human-readable labels for each pipeline stage */
 export const PIPELINE_STAGE_LABELS: Record<string, string> = {
-  idea: "Idea",
-  script: "Script",
-  voice: "Voice",
-  video: "Video",
-  thumbnail: "Thumbnail",
+  idea: "Pomysł",
+  script: "Skrypt",
+  voice: "Nagranie",
+  video: "Wideo",
+  thumbnail: "Miniatura",
   seo: "SEO",
-  review: "Review",
-  scheduled: "Scheduled",
-  published: "Published",
+  review: "Recenzja",
+  scheduled: "Zaplanowany",
+  published: "Opublikowany",
 };
 
 /** Tailwind color classes for each pipeline stage */

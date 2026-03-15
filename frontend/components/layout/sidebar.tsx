@@ -22,45 +22,45 @@ import {
 
 const navItems = [
   {
-    group: "Overview",
+    group: "Przegląd",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Panel główny", icon: LayoutDashboard },
     ],
   },
   {
-    group: "Layer 1 - Market Intelligence",
+    group: "Warstwa 1 — Wywiad Rynkowy",
     items: [
-      { href: "/niche-explorer", label: "Niche Explorer", icon: Search },
+      { href: "/niche-explorer", label: "Eksplorator Nisz", icon: Search },
     ],
   },
   {
-    group: "Layer 2 - Content Design",
+    group: "Warstwa 2 — Projektowanie Treści",
     items: [
-      { href: "/channel-architect", label: "Channel Architect", icon: Building2 },
+      { href: "/channel-architect", label: "Architekt Kanału", icon: Building2 },
     ],
   },
   {
-    group: "Layer 3 - Production",
+    group: "Warstwa 3 — Produkcja",
     items: [
-      { href: "/content-pipeline", label: "Content Pipeline", icon: Kanban },
-      { href: "/script-studio", label: "Script Studio", icon: FileText },
-      { href: "/voice-lab", label: "Voice Lab", icon: Mic },
-      { href: "/thumbnail-workshop", label: "Thumbnail Workshop", icon: Image },
-      { href: "/video-assembly", label: "Video Assembly", icon: Film },
+      { href: "/content-pipeline", label: "Pipeline Produkcji", icon: Kanban },
+      { href: "/script-studio", label: "Studio Skryptów", icon: FileText },
+      { href: "/voice-lab", label: "Laboratorium Głosu", icon: Mic },
+      { href: "/thumbnail-workshop", label: "Warsztat Miniatur", icon: Image },
+      { href: "/video-assembly", label: "Montaż Wideo", icon: Film },
     ],
   },
   {
-    group: "Layer 4 - Optimization",
+    group: "Warstwa 4 — Optymalizacja",
     items: [
-      { href: "/seo-command", label: "SEO Command Center", icon: BarChart2 },
-      { href: "/experiment-hub", label: "Experiment Hub", icon: FlaskConical },
-      { href: "/analytics", label: "Analytics & Forensics", icon: TrendingUp },
+      { href: "/seo-command", label: "Centrum SEO", icon: BarChart2 },
+      { href: "/experiment-hub", label: "Hub Eksperymentów", icon: FlaskConical },
+      { href: "/analytics", label: "Analityka i Diagnostyka", icon: TrendingUp },
     ],
   },
   {
-    group: "Layer 5 - Compliance",
+    group: "Warstwa 5 — Zgodność",
     items: [
-      { href: "/compliance", label: "Compliance Center", icon: Shield },
+      { href: "/compliance", label: "Centrum Zgodności", icon: Shield },
     ],
   },
 ];

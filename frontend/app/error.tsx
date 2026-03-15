@@ -20,13 +20,13 @@ export default function Error({
         <AlertTriangle className="h-8 w-8 text-destructive" />
       </div>
       <div className="text-center">
-        <h2 className="text-xl font-semibold text-foreground">Something went wrong</h2>
+        <h2 className="text-xl font-semibold text-foreground">Coś poszło nie tak</h2>
         <p className="mt-2 max-w-md text-sm text-muted-foreground">
-          An unexpected error occurred. This has been logged automatically.
+          Wystąpił nieoczekiwany błąd. Został on automatycznie zarejestrowany.
         </p>
         {error.digest && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Error ID: {error.digest}
+            ID błędu: {error.digest}
           </p>
         )}
       </div>
@@ -35,7 +35,7 @@ export default function Error({
         className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
       >
         <RefreshCw className="h-4 w-4" />
-        Try again
+        Spróbuj ponownie
       </button>
     </div>
   );

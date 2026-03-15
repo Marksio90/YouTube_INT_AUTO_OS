@@ -5,19 +5,19 @@ import type { AgentId, PipelineStage } from "@/types";
 // ============================================================
 
 export const PIPELINE_STAGES: { key: PipelineStage; label: string; icon: string }[] = [
-  { key: "idea", label: "Idea", icon: "💡" },
-  { key: "script", label: "Script", icon: "📝" },
-  { key: "voice", label: "Voice", icon: "🎙️" },
-  { key: "video", label: "Video", icon: "🎬" },
-  { key: "thumbnail", label: "Thumbnail", icon: "🖼️" },
+  { key: "idea", label: "Pomysł", icon: "💡" },
+  { key: "script", label: "Skrypt", icon: "📝" },
+  { key: "voice", label: "Nagranie", icon: "🎙️" },
+  { key: "video", label: "Wideo", icon: "🎬" },
+  { key: "thumbnail", label: "Miniatura", icon: "🖼️" },
   { key: "seo", label: "SEO", icon: "🔍" },
-  { key: "review", label: "Review", icon: "✅" },
-  { key: "scheduled", label: "Scheduled", icon: "📅" },
-  { key: "published", label: "Published", icon: "🚀" },
+  { key: "review", label: "Recenzja", icon: "✅" },
+  { key: "scheduled", label: "Zaplanowany", icon: "📅" },
+  { key: "published", label: "Opublikowany", icon: "🚀" },
 ];
 
 // ============================================================
-// Agent Registry — 23 agents across 5 layers
+// Agent Registry — 23 agentów w 5 warstwach
 // ============================================================
 
 export interface AgentMeta {
@@ -28,38 +28,38 @@ export interface AgentMeta {
 }
 
 export const AGENT_REGISTRY: AgentMeta[] = [
-  // Layer 1 — Market Intelligence
-  { id: "niche_hunter", name: "Niche Hunter", layer: 1, description: "Discovers profitable YouTube niches using demand/competition analysis." },
-  { id: "opportunity_mapper", name: "Opportunity Mapper", layer: 1, description: "Maps content gaps and trending opportunities within a niche." },
-  { id: "competitive_deconstruction", name: "Competitive Deconstruction", layer: 1, description: "Analyzes top competitor channels to reverse-engineer their success." },
+  // Warstwa 1 — Wywiad Rynkowy
+  { id: "niche_hunter", name: "Łowca Nisz", layer: 1, description: "Odkrywa dochodowe nisze YouTube na podstawie analizy popytu i konkurencji." },
+  { id: "opportunity_mapper", name: "Maper Okazji", layer: 1, description: "Mapuje luki contentowe i trendy w obrębie niszy." },
+  { id: "competitive_deconstruction", name: "Dekonstrukcja Konkurencji", layer: 1, description: "Analizuje czołowe kanały konkurencji, aby odwrócić inżynierię ich sukcesu." },
 
-  // Layer 2 — Content Design
-  { id: "channel_architect", name: "Channel Architect", layer: 2, description: "Designs channel strategy, content pillars, and brand identity." },
-  { id: "script_strategist", name: "Script Strategist", layer: 2, description: "Generates retention-optimized scripts with hooks and story arcs." },
-  { id: "voice_persona", name: "Voice Persona", layer: 2, description: "Defines and maintains consistent voice and tone across content." },
+  // Warstwa 2 — Projektowanie Treści
+  { id: "channel_architect", name: "Architekt Kanału", layer: 2, description: "Projektuje strategię kanału, filary treści i tożsamość marki." },
+  { id: "script_strategist", name: "Strateg Skryptów", layer: 2, description: "Generuje skrypty zoptymalizowane pod retencję z hookami i łukami fabularnymi." },
+  { id: "voice_persona", name: "Persona Głosowa", layer: 2, description: "Definiuje i utrzymuje spójny głos i ton we wszystkich treściach." },
 
-  // Layer 3 — AI Production
-  { id: "hook_specialist", name: "Hook Specialist", layer: 3, description: "Creates and optimizes opening hooks for maximum retention." },
-  { id: "retention_editor", name: "Retention Editor", layer: 3, description: "Injects retention devices and optimizes script pacing." },
-  { id: "thumbnail_psychology", name: "Thumbnail Psychology", layer: 3, description: "Designs click-worthy thumbnails using psychological principles." },
-  { id: "title_architect", name: "Title Architect", layer: 3, description: "Crafts high-CTR titles optimized for search and browse." },
-  { id: "storyboard", name: "Storyboard", layer: 3, description: "Creates visual storyboards with scene-by-scene direction." },
-  { id: "format_localizer", name: "Format Localizer", layer: 3, description: "Adapts content for different formats (Shorts, clips, podcasts)." },
-  { id: "asset_retrieval", name: "Asset Retrieval", layer: 3, description: "Retrieves stock footage, images, and music for production." },
-  { id: "video_assembly", name: "Video Assembly", layer: 3, description: "Assembles final video from voice, visuals, and effects." },
-  { id: "audio_polish", name: "Audio Polish", layer: 3, description: "Enhances audio quality with noise removal and mastering." },
-  { id: "caption", name: "Caption", layer: 3, description: "Generates accurate captions and subtitles." },
+  // Warstwa 3 — Produkcja AI
+  { id: "hook_specialist", name: "Specjalista od Hooków", layer: 3, description: "Tworzy i optymalizuje otwierające hooki dla maksymalnej retencji." },
+  { id: "retention_editor", name: "Edytor Retencji", layer: 3, description: "Wstrzykuje elementy retencji i optymalizuje tempo skryptu." },
+  { id: "thumbnail_psychology", name: "Psychologia Miniatur", layer: 3, description: "Projektuje przyciągające kliknięcia miniatury z użyciem zasad psychologicznych." },
+  { id: "title_architect", name: "Architekt Tytułów", layer: 3, description: "Tworzy tytuły o wysokim CTR, zoptymalizowane pod wyszukiwanie i przeglądanie." },
+  { id: "storyboard", name: "Storyboard", layer: 3, description: "Tworzy wizualne storyboardy z kadr-po-kadrze wskazówkami." },
+  { id: "format_localizer", name: "Lokalizator Formatów", layer: 3, description: "Dostosowuje treści do różnych formatów (Shorts, klipy, podcasty)." },
+  { id: "asset_retrieval", name: "Pobieranie Zasobów", layer: 3, description: "Pobiera materiały stockowe, obrazy i muzykę do produkcji." },
+  { id: "video_assembly", name: "Montaż Wideo", layer: 3, description: "Montuje finalne wideo z głosu, wizualizacji i efektów." },
+  { id: "audio_polish", name: "Polerowanie Audio", layer: 3, description: "Poprawia jakość dźwięku przez usuwanie szumów i mastering." },
+  { id: "caption", name: "Napisy", layer: 3, description: "Generuje dokładne napisy i podpisy." },
 
-  // Layer 4 — Growth & Optimization
-  { id: "seo_intelligence", name: "SEO Intelligence", layer: 4, description: "Optimizes titles, descriptions, and tags for YouTube search." },
-  { id: "experimentation", name: "Experimentation", layer: 4, description: "Runs A/B tests on thumbnails, titles, and hooks." },
-  { id: "watch_time_forensics", name: "Watch-Time Forensics", layer: 4, description: "Analyzes retention curves to identify and fix drop-off points." },
-  { id: "channel_portfolio", name: "Channel Portfolio", layer: 4, description: "Manages multi-channel strategy and cross-promotion." },
+  // Warstwa 4 — Wzrost i Optymalizacja
+  { id: "seo_intelligence", name: "Inteligencja SEO", layer: 4, description: "Optymalizuje tytuły, opisy i tagi pod wyszukiwarkę YouTube." },
+  { id: "experimentation", name: "Eksperymentowanie", layer: 4, description: "Prowadzi testy A/B miniatur, tytułów i hooków." },
+  { id: "watch_time_forensics", name: "Analiza Czasu Oglądania", layer: 4, description: "Analizuje krzywe retencji, aby identyfikować i naprawiać momenty odpadu." },
+  { id: "channel_portfolio", name: "Portfolio Kanałów", layer: 4, description: "Zarządza strategią wielu kanałów i wzajemną promocją." },
 
-  // Layer 5 — Compliance & Monetization
-  { id: "originality_transformation", name: "Originality & Transformation", layer: 5, description: "Ensures content passes originality checks and adds transformative value." },
-  { id: "rights_risk", name: "Rights & Risk", layer: 5, description: "Audits copyright, trademark, and fair use risks." },
-  { id: "monetization_readiness", name: "Monetization Readiness", layer: 5, description: "Checks YPP eligibility and monetization compliance." },
+  // Warstwa 5 — Zgodność i Monetyzacja
+  { id: "originality_transformation", name: "Oryginalność i Transformacja", layer: 5, description: "Zapewnia przejście treści przez kontrole oryginalności i dodaje wartość transformacyjną." },
+  { id: "rights_risk", name: "Prawa i Ryzyko", layer: 5, description: "Audytuje ryzyko praw autorskich, znaków towarowych i dozwolonego użytku." },
+  { id: "monetization_readiness", name: "Gotowość do Monetyzacji", layer: 5, description: "Sprawdza kwalifikowalność do YPP i zgodność z zasadami monetyzacji." },
 ];
 
 // ============================================================
@@ -67,11 +67,11 @@ export const AGENT_REGISTRY: AgentMeta[] = [
 // ============================================================
 
 export const LAYER_NAMES: Record<number, string> = {
-  1: "Market Intelligence",
-  2: "Content Design",
-  3: "AI Production",
-  4: "Growth & Optimization",
-  5: "Compliance & Monetization",
+  1: "Wywiad Rynkowy",
+  2: "Projektowanie Treści",
+  3: "Produkcja AI",
+  4: "Wzrost i Optymalizacja",
+  5: "Zgodność i Monetyzacja",
 };
 
 export const LAYER_COLORS: Record<number, { bg: string; text: string; border: string }> = {
@@ -82,11 +82,11 @@ export const LAYER_COLORS: Record<number, { bg: string; text: string; border: st
   5: { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20" },
 };
 
-/** Alias for AGENT_REGISTRY — used by dashboard and other components */
+/** Alias dla AGENT_REGISTRY — używany przez dashboard i inne komponenty */
 export const AGENTS = AGENT_REGISTRY;
 
 // ============================================================
-// Quality Gate Thresholds
+// Progi Quality Gate
 // ============================================================
 
 export const QUALITY_THRESHOLDS = {

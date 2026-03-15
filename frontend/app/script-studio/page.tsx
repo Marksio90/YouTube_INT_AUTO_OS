@@ -53,9 +53,9 @@ export default function ScriptStudioPage() {
     <div className="p-6 h-full flex flex-col gap-4">
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-bold">Script Studio</h1>
+          <h1 className="text-2xl font-bold">Studio Skryptów</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Agenci: Script Strategist • Hook Specialist • Retention Editor
+            Agenci: Strateg Skryptów • Specjalista od Hooków • Edytor Retencji
           </p>
         </div>
         <div className="flex gap-2">
@@ -110,8 +110,8 @@ export default function ScriptStudioPage() {
           </div>
           <div className={cn("ml-auto text-xs font-medium flex items-center gap-1", qualityGatePassed ? "text-green-600" : "text-yellow-600")}>
             {qualityGatePassed
-              ? <><CheckCircle className="w-3.5 h-3.5" />Quality Gate PASSED</>
-              : <><AlertCircle className="w-3.5 h-3.5" />Quality Gate PENDING</>
+              ? <><CheckCircle className="w-3.5 h-3.5" />Quality Gate ZALICZONY</>
+              : <><AlertCircle className="w-3.5 h-3.5" />Quality Gate NIEZALICZONY</>
             }
           </div>
         </div>

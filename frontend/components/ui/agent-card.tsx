@@ -67,8 +67,8 @@ export function AgentCard({ agent, onRun, compact = false, className }: AgentCar
       {!compact && (
         <div className="mt-2 flex items-center justify-between">
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span>{agent.tasksCompleted} runs</span>
-            {agent.successRate > 0 && <span>{agent.successRate}% success</span>}
+            <span>{agent.tasksCompleted} uruchomień</span>
+            {agent.successRate > 0 && <span>{agent.successRate}% skuteczność</span>}
             <span>~{agent.avgDurationSeconds}s</span>
           </div>
           {onRun && agent.status === "idle" && (
@@ -76,7 +76,7 @@ export function AgentCard({ agent, onRun, compact = false, className }: AgentCar
               onClick={() => onRun(agent.id)}
               className="text-xs text-primary hover:underline font-medium"
             >
-              Run
+              Uruchom
             </button>
           )}
         </div>

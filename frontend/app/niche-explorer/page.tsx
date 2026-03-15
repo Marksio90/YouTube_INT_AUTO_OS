@@ -66,9 +66,9 @@ export default function NicheExplorerPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Niche Explorer</h1>
+          <h1 className="text-2xl font-bold text-foreground">Eksplorator Nisz</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Agent: Niche Hunter • Opportunity Mapper • Competitive Deconstruction
+            Agenci: Łowca Nisz • Maper Okazji • Dekonstrukcja Konkurencji
           </p>
         </div>
         <button
@@ -126,7 +126,7 @@ export default function NicheExplorerPage() {
       <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-center gap-2">
         <Star className="w-4 h-4 text-yellow-600 shrink-0" />
         <p className="text-sm text-yellow-700">
-          <strong>Quality Gate:</strong> Niche Score &gt; 70/100 wymagany do przejscia do Channel Architect
+          <strong>Quality Gate:</strong> Wynik Niszy &gt; 70/100 wymagany do przejścia do Architekta Kanału
         </p>
       </div>
 
@@ -232,7 +232,7 @@ export default function NicheExplorerPage() {
                   </div>
 
                   <button className="w-full bg-primary text-white text-xs py-2 rounded-lg hover:bg-primary/90">
-                    Generuj Channel Blueprint →
+                    Generuj Blueprint Kanału →
                   </button>
                 </div>
               ) : (

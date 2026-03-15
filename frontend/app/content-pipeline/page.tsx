@@ -61,7 +61,7 @@ export default function ContentPipelinePage() {
     <div className="p-6 h-full flex flex-col gap-4">
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-bold">Content Pipeline</h1>
+          <h1 className="text-2xl font-bold">Pipeline Produkcji</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             Kanban produkcji —{" "}
             {isLoading ? "..." : `${videos.length} aktywnych projektow`}

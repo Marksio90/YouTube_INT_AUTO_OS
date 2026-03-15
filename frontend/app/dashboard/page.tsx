@@ -404,7 +404,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-foreground flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" />
-            23 Agentow AI — Status
+            23 Agentów AI — Status
           </h2>
           <div className="flex gap-3 text-xs">
             {[1, 2, 3, 4, 5].map((layer) => (
