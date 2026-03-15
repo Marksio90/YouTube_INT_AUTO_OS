@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { cn } from "@/lib/utils";
 import { CheckCircle, XCircle, Loader2, Zap, Wifi, WifiOff } from "lucide-react";
@@ -44,14 +45,19 @@ export function AgentRunProgress({
   className,
 }: AgentRunProgressProps) {
   const { event, isConnected } = useAgentStream(runId);
+  const firedRef = useRef<string | null>(null);
 
-  // Fire callbacks on terminal state
-  if (event?.status === "completed" && onComplete && event.output_data) {
-    onComplete(event.output_data);
-  }
-  if (event?.status === "error" && onError) {
-    onError(event.error_message ?? "Nieznany błąd");
-  }
+  // Fire callbacks exactly once per terminal event (must not be called during render)
+  useEffect(() => {
+    if (!event || firedRef.current === event.status) return;
+    if (event.status === "completed" && onComplete && event.output_data) {
+      firedRef.current = event.status;
+      onComplete(event.output_data);
+    } else if (event.status === "error" && onError) {
+      firedRef.current = event.status;
+      onError(event.error_message ?? "Nieznany błąd");
+    }
+  }, [event, onComplete, onError]);
 
   if (!runId) return null;
 
