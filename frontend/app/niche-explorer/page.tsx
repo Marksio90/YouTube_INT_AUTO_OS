@@ -133,14 +133,14 @@ export default function NicheExplorerPage() {
       {isLoading && (
         <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-sm">Ladowanie analiz nisz...</span>
+          <span className="text-sm">Ładowanie analiz nisz...</span>
         </div>
       )}
 
       {error && (
         <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-700 text-sm">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          Blad ladowania nisz. Sprawdz polaczenie z API.
+          Błąd ładowania nisz. Sprawdź połączenie z API.
         </div>
       )}
 
@@ -150,11 +150,11 @@ export default function NicheExplorerPage() {
             <div className="col-span-2 bg-card border border-border rounded-lg p-4">
               <h2 className="font-semibold mb-1">Mapa Nisz</h2>
               <p className="text-xs text-muted-foreground mb-3">
-                Os X: Popyt | Os Y: RPM ($) | Rozmiar: Latwose produkcji
+                Os X: Popyt | Os Y: RPM ($) | Rozmiar: Łatwość produkcji
               </p>
               {niches.length === 0 ? (
                 <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
-                  Brak danych — uruchom analize niszy powyzej
+                  Brak danych — uruchom analizę niszy powyżej
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
@@ -239,7 +239,7 @@ export default function NicheExplorerPage() {
                 <div className="h-full flex items-center justify-center text-center">
                   <div className="text-muted-foreground">
                     <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">Wybierz nisza z listy aby zobaczyc szczegoly</p>
+                    <p className="text-sm">Wybierz niszę z listy aby zobaczyć szczegóły</p>
                   </div>
                 </div>
               )}
@@ -263,8 +263,8 @@ export default function NicheExplorerPage() {
             {filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 {niches.length === 0
-                  ? "Brak analiz — kliknij '+ Analizuj nowa nisza' aby rozpoczac"
-                  : "Brak wynikow dla podanej frazy"}
+                  ? "Brak analiz — kliknij '+ Analizuj nową niszę' aby rozpocząć"
+                  : "Brak wyników dla podanej frazy"}
               </p>
             ) : (
               <div className="space-y-2">

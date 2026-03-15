@@ -35,7 +35,7 @@ function VideoCard({ video }: { video: VideoProject }) {
       {agentCount > 0 && (
         <div className="flex items-center gap-1 mt-1.5">
           <Zap className="w-3 h-3 text-yellow-500" />
-          <span className="text-xs text-muted-foreground">{agentCount} agentow aktywnych</span>
+          <span className="text-xs text-muted-foreground">{agentCount} agentów aktywnych</span>
         </div>
       )}
 
@@ -64,7 +64,7 @@ export default function ContentPipelinePage() {
           <h1 className="text-2xl font-bold">Pipeline Produkcji</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             Kanban produkcji —{" "}
-            {isLoading ? "..." : `${videos.length} aktywnych projektow`}
+            {isLoading ? "..." : `${videos.length} aktywnych projektów`}
           </p>
         </div>
         <button className="bg-primary text-white text-sm px-4 py-2 rounded-lg hover:bg-primary/90 flex items-center gap-1.5">
@@ -76,7 +76,7 @@ export default function ContentPipelinePage() {
       {error && (
         <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-700 text-sm shrink-0">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          Blad ladowania projektow. Sprawdz polaczenie z API.
+          Błąd ładowania projektów. Sprawdź połączenie z API.
         </div>
       )}
 
@@ -115,7 +115,7 @@ export default function ContentPipelinePage() {
       {isLoading ? (
         <div className="flex items-center justify-center flex-1 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-sm">Ladowanie projektow...</span>
+          <span className="text-sm">Ładowanie projektów...</span>
         </div>
       ) : (
         /* Kanban Board */

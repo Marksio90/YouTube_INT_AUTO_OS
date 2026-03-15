@@ -10,7 +10,9 @@ import type {
   NicheScore,
 } from "@/types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Use empty string so API calls go through the Next.js proxy (next.config.ts rewrites).
+// Browser calls /api/v1/* → Next.js server proxies to the backend container.
+const API_BASE_URL = "";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -36,9 +38,26 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Global response interceptor — redirect to login on 401
+// Convert snake_case keys to camelCase recursively
+function toCamel(str: string): string {
+  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+function keysToCamel(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(keysToCamel);
+  if (obj !== null && typeof obj === "object") {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>).map(([k, v]) => [toCamel(k), keysToCamel(v)])
+    );
+  }
+  return obj;
+}
+
+// Global response interceptor — camelCase transform + redirect to login on 401
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    res.data = keysToCamel(res.data);
+    return res;
+  },
   (error) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
       const path = window.location.pathname;
