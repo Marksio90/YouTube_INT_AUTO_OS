@@ -29,9 +29,9 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, onRun, compact = false, className }: AgentCardProps) {
-  const layerColors = LAYER_COLORS[agent.layer];
-  const StatusIcon = STATUS_ICONS[agent.status];
-  const statusColor = STATUS_COLORS[agent.status];
+  const layerColors = LAYER_COLORS[agent.layer] ?? LAYER_COLORS[1];
+  const StatusIcon = STATUS_ICONS[agent.status as keyof typeof STATUS_ICONS] ?? Clock;
+  const statusColor = STATUS_COLORS[agent.status as keyof typeof STATUS_COLORS] ?? "text-muted-foreground";
 
   return (
     <div
