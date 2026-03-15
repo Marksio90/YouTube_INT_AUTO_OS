@@ -37,8 +37,8 @@ async def get_script(
 @router.post("/generate", response_model=dict, status_code=202)
 @limiter.limit("10/minute")
 async def generate_script(
-    request_obj: Request,
-    request: ScriptGenerateRequest,
+    request: Request,
+    body: ScriptGenerateRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_creator),
@@ -49,9 +49,9 @@ async def generate_script(
     """
     run = AgentRun(
         agent_id="script_strategist",
-        video_project_id=request.video_project_id,
+        video_project_id=body.video_project_id,
         status=AgentStatus.running,
-        input_data=request.model_dump(mode="json"),
+        input_data=body.model_dump(mode="json"),
         started_at=datetime.now(timezone.utc),
     )
     db.add(run)
@@ -61,7 +61,7 @@ async def generate_script(
     background_tasks.add_task(
         _dispatch_script_pipeline,
         str(run.id),
-        request.model_dump(mode="json"),
+        body.model_dump(mode="json"),
     )
 
     return {
@@ -76,7 +76,7 @@ async def generate_script(
 @router.post("/{script_id}/optimize", response_model=dict, status_code=202)
 @limiter.limit("10/minute")
 async def optimize_script(
-    request_obj: Request,
+    request: Request,
     script_id: uuid.UUID,
     optimize_data: dict,
     background_tasks: BackgroundTasks,
