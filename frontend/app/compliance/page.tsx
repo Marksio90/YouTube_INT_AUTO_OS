@@ -84,7 +84,7 @@ export default function CompliancePage() {
           </p>
         </div>
         <button className="bg-primary text-white text-sm px-4 py-2 rounded-lg hover:bg-primary/90">
-          Uruchom pelen skan
+          Uruchom pełny skan
         </button>
       </div>
 
@@ -95,7 +95,7 @@ export default function CompliancePage() {
           <div>
             <p className="text-sm font-semibold text-red-700">Polityka Inauthentic Content — Aktywna od 15.07.2025</p>
             <p className="text-xs text-red-600 mt-1 leading-relaxed">
-              YouTube egzekwuje zakaz tresci &quot;easily replicable at scale&quot; i template-driven content. Styczen 2026: 16 kanalow usunieto (4.7 mld wyswietlen).
+              YouTube egzekwuje zakaz treści &quot;easily replicable at scale&quot; i template-driven content. Styczeń 2026: 16 kanałów usuniętych (4.7 mld wyświetleń).
               Kazdy film musi przejsc: Originality Score ≥ 85/100 oraz Similarity cosine &lt; 0.85.
             </p>
           </div>
@@ -131,11 +131,11 @@ export default function CompliancePage() {
 
       {/* Channel Scorecard */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h2 className="font-semibold mb-3">Scorecard Kanalow</h2>
+        <h2 className="font-semibold mb-3">Scorecard Kanałów</h2>
         {isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Ladowanie kanalow...</span>
+            <span className="text-sm">Ładowanie kanałów...</span>
           </div>
         ) : channels.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
@@ -147,7 +147,7 @@ export default function CompliancePage() {
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Kanal</th>
-                  <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Oryginalnosc</th>
+                  <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Oryginalność</th>
                   <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Compliance</th>
                   <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Ryzyko</th>
                   <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">YPP Status</th>
@@ -195,14 +195,14 @@ export default function CompliancePage() {
 
       {/* Info panel */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <h2 className="font-semibold mb-3">Jak uruchomic pelny skan</h2>
+        <h2 className="font-semibold mb-3">Jak uruchomić pełny skan</h2>
         <div className="flex items-start gap-2 text-sm text-muted-foreground">
           <Info className="w-4 h-4 shrink-0 mt-0.5" />
           <p>
-            Aby uzyskac szczegolowy raport compliance dla konkretnego filmu, przejdz do{" "}
+            Aby uzyskać szczegółowy raport compliance dla konkretnego filmu, przejdź do{" "}
             <strong>Content Pipeline</strong>, wybierz film i kliknij{" "}
             <strong>Uruchom compliance check</strong>. Agenci Originality &amp; Transformation
-            oraz Rights &amp; Risk przeanalizuja film i zapisza raport.
+            oraz Rights &amp; Risk przeanalizują film i zapiszą raport.
           </p>
         </div>
       </div>

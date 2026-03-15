@@ -151,10 +151,10 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Youtube className="w-7 h-7 text-primary" />
-            Dashboard Glowny
+            Dashboard Główny
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Portfolio: {channels.length} kanaly | Marzec 2026
+            Portfolio: {channels.length} kanały | Marzec 2026
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -170,7 +170,7 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
-          title="Laczne Przychody"
+          title="Łączne Przychody"
           value={formatCurrency(totalRevenue)}
           change={22}
           changeLabel="vs ostatni miesiac"
@@ -186,7 +186,7 @@ export default function DashboardPage() {
           iconColor="text-blue-600"
         />
         <StatCard
-          title="Wyswietlenia"
+          title="Wyświetlenia"
           value={formatNumber(totalViews)}
           change={31}
           changeLabel="vs ostatni miesiac"
@@ -207,9 +207,9 @@ export default function DashboardPage() {
         {/* Views Chart - 2 cols */}
         <div className="col-span-2 bg-card border border-border rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-foreground">Wyswietlenia & Przychody (12 msc)</h2>
+            <h2 className="font-semibold text-foreground">Wyświetlenia & Przychody (12 msc)</h2>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block"/> Wyswietlenia</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block"/> Wyświetlenia</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"/> Przychody ($)</span>
             </div>
           </div>
@@ -249,7 +249,7 @@ export default function DashboardPage() {
 
         {/* Revenue by Stream */}
         <div className="bg-card border border-border rounded-lg p-4">
-          <h2 className="font-semibold text-foreground mb-4">Przychody wg Zrodla</h2>
+          <h2 className="font-semibold text-foreground mb-4">Przychody wg Źródła</h2>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie
@@ -288,8 +288,8 @@ export default function DashboardPage() {
       {/* Channels Table */}
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-foreground">Portfolio Kanalow</h2>
-          <button className="text-xs text-primary hover:underline">+ Dodaj kanal</button>
+          <h2 className="font-semibold text-foreground">Portfolio Kanałów</h2>
+          <button className="text-xs text-primary hover:underline">+ Dodaj kanał</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -297,10 +297,10 @@ export default function DashboardPage() {
               <tr className="border-b border-border">
                 <th className="text-left py-2 px-3 text-xs text-muted-foreground font-medium">Kanal</th>
                 <th className="text-right py-2 px-3 text-xs text-muted-foreground font-medium">Subskrybenci</th>
-                <th className="text-right py-2 px-3 text-xs text-muted-foreground font-medium">Wyswietlenia</th>
+                <th className="text-right py-2 px-3 text-xs text-muted-foreground font-medium">Wyświetlenia</th>
                 <th className="text-right py-2 px-3 text-xs text-muted-foreground font-medium">Przychody</th>
                 <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Compliance</th>
-                <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Oryginalnosc</th>
+                <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">Oryginalność</th>
                 <th className="text-center py-2 px-3 text-xs text-muted-foreground font-medium">YPP</th>
               </tr>
             </thead>
@@ -310,7 +310,7 @@ export default function DashboardPage() {
                   <td className="py-3 px-3">
                     <div>
                       <p className="font-medium text-foreground">{channel.name}</p>
-                      <p className="text-xs text-muted-foreground">{channel.niche} • {channel.videoCount} filmow</p>
+                      <p className="text-xs text-muted-foreground">{channel.niche} • {channel.videoCount} filmów</p>
                     </div>
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-sm">

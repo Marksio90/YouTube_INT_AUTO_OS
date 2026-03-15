@@ -50,12 +50,12 @@ export default function AnalyticsPage() {
       {videosLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
-          Ladowanie filmow...
+          Ładowanie filmów...
         </div>
       ) : publishedVideos.length === 0 ? (
         <div className="flex items-center gap-2 p-4 bg-muted rounded-lg text-muted-foreground text-sm">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          Brak opublikowanych filmow. Dane analityczne beda dostepne po publikacji.
+          Brak opublikowanych filmów. Dane analityczne będą dostępne po publikacji.
         </div>
       ) : (
         <div className="flex gap-2 flex-wrap">
@@ -79,7 +79,7 @@ export default function AnalyticsPage() {
       {analyticsLoading && activeVideo && (
         <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-sm">Ladowanie analityki...</span>
+          <span className="text-sm">Ładowanie analityki...</span>
         </div>
       )}
 
@@ -87,8 +87,8 @@ export default function AnalyticsPage() {
         <>
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: "Wyswietlenia", value: formatNumber(analytics.views), icon: Eye },
-              { label: "Srednia Retencja", value: formatPercent(analytics.avgRetentionPercent), icon: Clock },
+              { label: "Wyświetlenia", value: formatNumber(analytics.views), icon: Eye },
+              { label: "Średnia Retencja", value: formatPercent(analytics.avgRetentionPercent), icon: Clock },
               { label: "CTR", value: formatPercent(analytics.ctr), icon: TrendingDown },
             ].map(({ label, value, icon: Icon }) => (
               <div key={label} className="bg-card border border-border rounded-lg p-4 flex items-center gap-3">
@@ -164,7 +164,7 @@ export default function AnalyticsPage() {
                 <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg mb-4">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-green-500" />
-                    <p className="text-xs font-medium text-green-700">Brak krytycznych drop pointow</p>
+                    <p className="text-xs font-medium text-green-700">Brak krytycznych drop pointów</p>
                   </div>
                 </div>
               )}
@@ -172,7 +172,7 @@ export default function AnalyticsPage() {
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
                 <p className="text-xs font-medium text-blue-700 mb-1">Metryki:</p>
                 <ul className="text-xs text-blue-600 space-y-0.5">
-                  <li>• Czas ogladania: {Math.round(analytics.watchTimeMinutes)} min</li>
+                  <li>• Czas oglądania: {Math.round(analytics.watchTimeMinutes)} min</li>
                   <li>• Polubienia: {formatNumber(analytics.likes)}</li>
                   <li>• Komentarze: {formatNumber(analytics.comments)}</li>
                   <li>• Przychody: ${analytics.revenue.toFixed(2)} (RPM: ${analytics.rpm.toFixed(2)})</li>
@@ -186,7 +186,7 @@ export default function AnalyticsPage() {
       {!analyticsLoading && !analytics && activeVideo && (
         <div className="bg-card border border-border rounded-lg p-8 text-center text-muted-foreground">
           <p className="text-sm">Brak danych analitycznych dla tego filmu.</p>
-          <p className="text-xs mt-1">Dane beda dostepne po uruchomieniu agenta Watch-Time Forensics.</p>
+          <p className="text-xs mt-1">Dane będą dostępne po uruchomieniu agenta Watch-Time Forensics.</p>
         </div>
       )}
     </div>
