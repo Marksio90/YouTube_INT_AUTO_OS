@@ -47,9 +47,9 @@ class Channel(Base, UUIDMixin, TimestampMixin):
 
     # Composite and single-column indexes for common query patterns
     __table_args__ = (
-        Index("ix_channels_is_active_created_at", "is_active", "created_at"),
-        Index("ix_channels_niche", "niche"),
-        Index("ix_channels_ypp_status", "ypp_status"),
+        Index("ix_channels_is_active_created_at", "is_active", "created_at", if_not_exists=True),
+        Index("ix_channels_niche", "niche", if_not_exists=True),
+        Index("ix_channels_ypp_status", "ypp_status", if_not_exists=True),
     )
 
     # Relationships

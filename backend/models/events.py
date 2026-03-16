@@ -181,11 +181,11 @@ class VideoEvent(Base):
     # ── Indexes ──────────────────────────────────────────────────
     __table_args__ = (
         # Fast replay: all events for a video in order
-        Index("ix_video_events_project_time", "video_project_id", "occurred_at"),
+        Index("ix_video_events_project_time", "video_project_id", "occurred_at", if_not_exists=True),
         # Fast analytics queries by event type + time range
-        Index("ix_video_events_type_time", "event_type", "occurred_at"),
+        Index("ix_video_events_type_time", "event_type", "occurred_at", if_not_exists=True),
         # Agent performance tracking
-        Index("ix_video_events_agent_type", "agent_id", "event_type"),
+        Index("ix_video_events_agent_type", "agent_id", "event_type", if_not_exists=True),
     )
 
     def __repr__(self) -> str:
