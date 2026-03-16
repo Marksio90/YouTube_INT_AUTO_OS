@@ -192,5 +192,5 @@ class ComplianceAlert(Base, UUIDMixin, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("channel_id", "video_a_id", "video_b_id", name="uq_compliance_alert_pair"),
-        Index("ix_compliance_alerts_channel_id", "channel_id", postgresql_if_not_exists=True),
+        Index("ix_compliance_alerts_channel_id", "channel_id", if_not_exists=True),
     )
