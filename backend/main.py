@@ -13,6 +13,7 @@ import json
 from core.config import settings
 from core.database import init_db, close_db
 from core.langfuse import flush as langfuse_flush, is_enabled as langfuse_enabled
+from core.redis import init_redis, close_redis, redis_health_check
 from api.v1.router import api_router
 from core.rate_limit import limiter
 
@@ -28,9 +29,11 @@ async def lifespan(app: FastAPI):
         langfuse_enabled=langfuse_enabled(),
     )
     await init_db()
+    await init_redis()
     yield
     langfuse_flush()
     await close_db()
+    await close_redis()
     logger.info("API shutdown complete")
 
 
@@ -82,6 +85,7 @@ app.include_router(api_router)
 
 @app.get("/health")
 async def health_check():
+    redis_ok = await redis_health_check()
     return {
         "status": "healthy",
         "service": settings.app_name,
@@ -89,6 +93,7 @@ async def health_check():
         "env": settings.app_env,
         "agents": 23,
         "layers": 5,
+        "redis": "ok" if redis_ok else "unavailable",
     }
 
 

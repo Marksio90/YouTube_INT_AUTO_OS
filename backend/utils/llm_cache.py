@@ -24,13 +24,10 @@ Or use the decorator:
 from __future__ import annotations
 
 import hashlib
-import json
 import functools
 from typing import Optional, Callable, Any
 
 import structlog
-
-from core.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -45,13 +42,10 @@ def make_cache_key(prompt: str, model: str) -> str:
     return f"{_CACHE_PREFIX}{digest}"
 
 
-async def _get_redis_client():
-    import redis.asyncio as aioredis
-    return aioredis.from_url(
-        settings.redis_url,
-        decode_responses=True,
-        socket_connect_timeout=1,
-    )
+def _client():
+    """Return the shared Redis client from the app-level pool."""
+    from core.redis import get_redis
+    return get_redis()
 
 
 async def get_cached_response(cache_key: str) -> Optional[str]:
@@ -60,12 +54,10 @@ async def get_cached_response(cache_key: str) -> Optional[str]:
     Returns None if cache miss or Redis unavailable.
     """
     try:
-        client = await _get_redis_client()
-        async with client:
-            value = await client.get(cache_key)
-            if value:
-                logger.debug("LLM cache hit", key=cache_key[:32])
-                return value
+        value = await _client().get(cache_key)
+        if value:
+            logger.debug("LLM cache hit", key=cache_key[:32])
+            return value
     except Exception as e:
         logger.debug("LLM cache read failed (non-critical)", error=str(e))
     return None
@@ -77,10 +69,8 @@ async def cache_response(cache_key: str, response: str, ttl: int = _DEFAULT_TTL)
     Silently ignores Redis failures — caching is best-effort.
     """
     try:
-        client = await _get_redis_client()
-        async with client:
-            await client.setex(cache_key, ttl, response)
-            logger.debug("LLM response cached", key=cache_key[:32], ttl=ttl)
+        await _client().setex(cache_key, ttl, response)
+        logger.debug("LLM response cached", key=cache_key[:32], ttl=ttl)
     except Exception as e:
         logger.debug("LLM cache write failed (non-critical)", error=str(e))
 

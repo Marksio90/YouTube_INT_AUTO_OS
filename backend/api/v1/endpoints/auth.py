@@ -9,17 +9,15 @@ from sqlalchemy import select
 from core.auth import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_token,
-    get_current_user,
+    get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES,
 )
 from core.database import get_db
+from core.redis import blacklist_token
 from models.user import User, UserRole
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Import limiter from main app state (set via app.state.limiter in main.py)
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-_limiter = Limiter(key_func=get_remote_address)
+from core.rate_limit import limiter as _limiter
 
 
 # ============================================================
@@ -75,6 +73,11 @@ class UserResponse(BaseModel):
     is_active: bool
 
     model_config = {"from_attributes": True}
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def coerce_id_to_str(cls, v) -> str:
+        return str(v)
 
 
 # ============================================================
@@ -145,6 +148,22 @@ async def refresh_token(data: RefreshRequest, db: AsyncSession = Depends(get_db)
         access_token=create_access_token(str(user.id), user.email, user.role.value),
         refresh_token=create_refresh_token(str(user.id)),
     )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Revoke the current access token by adding it to the Redis blacklist.
+    The token remains blacklisted until its natural expiry (ACCESS_TOKEN_EXPIRE_MINUTES).
+    """
+    from fastapi.security import HTTPBearer
+    credentials = await HTTPBearer(auto_error=False)(request)
+    if credentials:
+        ttl = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        await blacklist_token(credentials.credentials, ttl)
 
 
 @router.get("/me", response_model=UserResponse)
