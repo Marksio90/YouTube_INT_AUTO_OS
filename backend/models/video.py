@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ARRAY, Enum, ForeignKey, DateTime
+from sqlalchemy import Column, String, Integer, Float, Boolean, Text, ARRAY, Enum, ForeignKey, DateTime, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
@@ -189,3 +189,8 @@ class ComplianceAlert(Base, UUIDMixin, TimestampMixin):
     alert_type = Column(String(50), nullable=False, default="high_similarity")
     is_resolved = Column(Boolean, default=False)
     resolved_at = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("channel_id", "video_a_id", "video_b_id", name="uq_compliance_alert_pair"),
+        Index("ix_compliance_alerts_channel_id", "channel_id"),
+    )

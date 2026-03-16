@@ -284,24 +284,6 @@ class YouTubeService:
             for row in rows
         ]
 
-    async def get_channel_analytics(
-        self, access_token: str, start_date: str, end_date: str
-    ) -> Dict:
-        """Get channel-level analytics (views, watch time, revenue, CTR)."""
-        headers = {"Authorization": f"Bearer {access_token}"}
-        params = {
-            "ids": "channel==MINE",
-            "metrics": "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,estimatedRevenue,ctr",
-            "startDate": start_date,
-            "endDate": end_date,
-        }
-
-        async with httpx.AsyncClient() as client:
-            return await self._api_call(
-                client, f"{YOUTUBE_ANALYTICS_BASE}/reports",
-                params=params, headers=headers,
-            )
-
     async def upload_video(
         self,
         channel_id: str,

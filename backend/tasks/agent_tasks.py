@@ -124,7 +124,6 @@ def run_channel_architect(self, run_id: str, input_data: dict):
 def run_script_strategist(self, run_id: str, input_data: dict):
     async def _execute():
         try:
-            from agents.strategic.niche_hunter import niche_hunter_agent  # ensure db ready
             from agents.content.script_strategist import script_strategist_agent
             await _update_run_status(run_id, AgentStatus.running)
             output = await script_strategist_agent.execute(input_data)

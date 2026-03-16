@@ -42,7 +42,9 @@ def post_publish_review(checkpoint: str):
             if video.published_url:
                 try:
                     # Fetch fresh analytics from YouTube
-                    await youtube_service.sync_video_analytics(str(video.id), video.published_url)
+                    await youtube_service.sync_video_analytics(
+                        str(video.id), video.published_url, str(video.channel_id)
+                    )
                     logger.info("Analytics synced", video_id=str(video.id), checkpoint=checkpoint)
                 except Exception as e:
                     logger.warning("Analytics sync failed", video_id=str(video.id), error=str(e))
