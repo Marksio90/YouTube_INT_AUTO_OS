@@ -19,7 +19,7 @@ interface AuthState {
 
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshAccessToken: () => Promise<void>;
   fetchMe: () => Promise<void>;
 }
@@ -89,7 +89,12 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => {
+      logout: async () => {
+        try {
+          await authApi.logout();
+        } catch {
+          // Ignore errors — clear local state regardless
+        }
         set({
           user: null,
           accessToken: null,
