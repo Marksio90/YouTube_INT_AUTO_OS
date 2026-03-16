@@ -12,9 +12,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from core.config import settings
 from core.database import Base
 # Import all models to ensure they are registered
+from models.user import User  # noqa
 from models.channel import Channel  # noqa
-from models.video import VideoProject, Script, ComplianceReport, VideoAnalytics  # noqa
+from models.video import VideoProject, Script, ComplianceReport, VideoAnalytics, ComplianceAlert  # noqa
 from models.agent import AgentRun, NicheAnalysis, Experiment  # noqa
+from models.events import VideoEvent  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

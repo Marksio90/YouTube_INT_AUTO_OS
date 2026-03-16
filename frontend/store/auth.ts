@@ -113,7 +113,7 @@ export const useAuthStore = create<AuthState>()(
             refreshToken: data.refresh_token,
           });
         } catch {
-          get().logout();
+          void get().logout();
         }
       },
 
