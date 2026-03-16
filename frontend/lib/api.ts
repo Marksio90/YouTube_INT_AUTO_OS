@@ -26,7 +26,7 @@ api.interceptors.request.use((config) => {
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-        const token = parsed?.state?.token;
+        const token = parsed?.state?.accessToken;
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -74,12 +74,16 @@ api.interceptors.response.use(
 // ============================================================
 
 export const authApi = {
-  register: async (data: { email: string; password: string; full_name?: string }) => {
-    const res = await api.post("/api/v1/auth/register", data);
+  register: async (email: string, password: string, fullName?: string) => {
+    const res = await api.post("/api/v1/auth/register", {
+      email,
+      password,
+      full_name: fullName,
+    });
     return res.data;
   },
-  login: async (data: { email: string; password: string }) => {
-    const res = await api.post("/api/v1/auth/login", data);
+  login: async (email: string, password: string) => {
+    const res = await api.post("/api/v1/auth/login", { email, password });
     return res.data;
   },
   me: async () => {
@@ -89,6 +93,9 @@ export const authApi = {
   refresh: async (refreshToken: string) => {
     const res = await api.post("/api/v1/auth/refresh", { refresh_token: refreshToken });
     return res.data;
+  },
+  logout: async () => {
+    await api.post("/api/v1/auth/logout");
   },
 };
 
