@@ -6,7 +6,7 @@ JWT Authentication System
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -51,6 +51,7 @@ def create_access_token(user_id: str, email: str, role: str) -> str:
         "email": email,
         "role": role,
         "type": "access",
+        "jti": str(uuid4()),  # unique token ID — enables precise revocation
         "exp": expires,
         "iat": datetime.now(timezone.utc),
     }
@@ -62,6 +63,7 @@ def create_refresh_token(user_id: str) -> str:
     payload = {
         "sub": user_id,
         "type": "refresh",
+        "jti": str(uuid4()),  # unique token ID
         "exp": expires,
         "iat": datetime.now(timezone.utc),
     }
@@ -94,10 +96,26 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    payload = decode_token(credentials.credentials)
+    token = credentials.credentials
+    payload = decode_token(token)
 
     if payload.get("type") != "access":
         raise HTTPException(status_code=401, detail="Invalid token type")
+
+    # Reject tokens that have been explicitly revoked via logout
+    try:
+        from core.redis import is_token_blacklisted
+        if await is_token_blacklisted(token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        # Redis unavailable — fail open (token accepted) to avoid auth outage
+        pass
 
     user_id = payload.get("sub")
     result = await db.execute(select(User).where(User.id == UUID(user_id)))

@@ -1,12 +1,11 @@
 """
 Shared test fixtures for YouTube Intelligence & Automation OS.
 
-Uses an in-memory SQLite database for fast, isolated tests.
+Uses an in-memory SQLite database and fakeredis for fast, isolated tests.
 No external services required — all AI calls are mocked.
 """
 import asyncio
 import uuid
-from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 import pytest
@@ -25,8 +24,33 @@ os.environ.setdefault("APP_ENV", "testing")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///")
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-fake-key")
 
+import fakeredis.aioredis as fakeredis_aio
+import core.redis as _redis_module
+
 from core.database import Base, get_db
 from main import app
+
+
+# ============================================================
+# Redis fixture — inject fakeredis so no real Redis is needed
+# ============================================================
+
+@pytest.fixture(scope="session", autouse=True)
+def fake_redis_server():
+    """Replace the global Redis client with an in-process fakeredis instance."""
+    server = fakeredis_aio.FakeRedis(decode_responses=True)
+    _redis_module._redis_client = server
+    yield server
+    # fakeredis doesn't require explicit close
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiting():
+    """Disable SlowAPI rate limiting for all tests to prevent 429 errors."""
+    from core.rate_limit import limiter
+    limiter.enabled = False
+    yield
+    limiter.enabled = True
 
 
 # ============================================================
@@ -41,6 +65,26 @@ def event_loop():
     loop.close()
 
 
+def _create_compatible_tables(conn, metadata):
+    """Create tables one by one, skipping those with PostgreSQL-specific types."""
+    from sqlalchemy.exc import CompileError
+    for table in metadata.sorted_tables:
+        try:
+            table.create(conn, checkfirst=True)
+        except CompileError:
+            pass  # Skip tables with ARRAY/JSONB/Vector columns unsupported by SQLite
+
+
+def _drop_compatible_tables(conn, metadata):
+    """Drop tables that were successfully created (reverse order)."""
+    from sqlalchemy.exc import CompileError
+    for table in reversed(metadata.sorted_tables):
+        try:
+            table.drop(conn, checkfirst=True)
+        except CompileError:
+            pass
+
+
 @pytest_asyncio.fixture(scope="function")
 async def db_engine():
     """Create a fresh in-memory SQLite engine per test."""
@@ -49,10 +93,10 @@ async def db_engine():
         echo=False,
     )
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_create_compatible_tables, Base.metadata)
     yield engine
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(_drop_compatible_tables, Base.metadata)
     await engine.dispose()
 
 
